@@ -1,0 +1,100 @@
+﻿<Window x:Class="chatapp.List"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="채팅방 목록" Height="800" Width="500"
+        Icon="Ccon.ico"
+        Background="#252A2E" WindowStartupLocation="CenterScreen">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- 상단 메뉴 -->
+            <RowDefinition/>
+            <!-- 채팅방 목록 -->
+        </Grid.RowDefinitions>
+
+        <!-- 상단 메뉴 -->
+        <DockPanel Grid.Row="0" Background="#2F4F4F" Height="60" LastChildFill="False">
+            <Button Content="채팅방 만들기" Width="140" Margin="10,0"
+            Click="CreateRoom_Click"
+            Background="#008B8B" Foreground="White"
+            FontWeight="Bold" BorderThickness="0" />
+
+            <Button Content="채팅방 열기" Width="140" Margin="10,0"
+            Click="JoinRoom_Click"
+            Background="#008B8B" Foreground="White"
+            FontWeight="Bold" BorderThickness="0" />
+
+            <Button Content="채팅방 관리" Width="140" Margin="10,0"
+            Click="ManageRooms_Click"
+            Background="#008B8B" Foreground="White"
+            FontWeight="Bold" BorderThickness="0" />
+        </DockPanel>
+        <StackPanel x:Name="CreateRoomPanel" Visibility="Collapsed" Margin="20" Background="#2F4F4F" Orientation="Vertical">
+            <TextBlock Text="채팅방 이름" Foreground="White" Margin="0,5"/>
+            <TextBox x:Name="RoomNameInput" Margin="0,5" Height="30"/>
+
+            <TextBlock Text="비밀번호" Foreground="White" Margin="0,5"/>
+            <PasswordBox x:Name="RoomPasswordInput" Margin="0,5" Height="30"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                <Button Content="취소" Width="60" Margin="0,0,10,0" Click="CancelCreateRoom_Click"/>
+                <Button Content="확인" Width="60" Click="ConfirmCreateRoom_Click"/>
+            </StackPanel>
+        </StackPanel>
+        <StackPanel x:Name="JoinRoomPanel" Visibility="Collapsed" Background="#2F4F4F" Margin="10">
+            <TextBlock Text="채팅방 이름" Foreground="White"/>
+            <TextBox x:Name="JoinRoomNameInput" Margin="0,5"/>
+            <TextBlock Text="비밀번호" Foreground="White"/>
+            <PasswordBox x:Name="JoinRoomPasswordInput" Margin="0,5"/>
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <Button Content="입장" Click="ConfirmJoinRoom_Click" Background="#00CED1" Margin="5"/>
+                <Button Content="취소" Click="CancelJoinRoom_Click" Background="#ccc" Margin="5"/>
+            </StackPanel>
+        </StackPanel>
+        <StackPanel x:Name="DeleteRoomPanel" Visibility="Collapsed" Margin="20" Background="#2F4F4F" Orientation="Vertical">
+            <TextBlock Text="채팅방 이름" Foreground="White" Margin="0,5"/>
+            <TextBox x:Name="DeleteRoomNameInput" Margin="0,5" Height="30"/>
+
+            <TextBlock Text="채팅방 ID" Foreground="White" Margin="0,5"/>
+            <TextBox x:Name="DeleteRoomIdInput" Margin="0,5" Height="30"/>
+
+            <TextBlock Text="비밀번호" Foreground="White" Margin="0,5"/>
+            <PasswordBox x:Name="DeleteRoomPasswordInput" Margin="0,5" Height="30"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                <Button Content="취소" Width="60" Margin="0,0,10,0" Click="CancelDeleteRoom_Click"/>
+                <Button Content="삭제" Width="60" Click="ConfirmDeleteRoom_Click" Background="#00CED1"/>
+            </StackPanel>
+        </StackPanel>
+
+
+        <!-- 채팅방 목록 -->
+        <ScrollViewer Grid.Row="1">
+            <StackPanel x:Name="RoomListPanel" Margin="10">
+                <ItemsControl x:Name="RoomListControl">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Height="60" Margin="5" Padding="10" Background="#2F4F4F" CornerRadius="10">
+                                <DockPanel>
+                                    <TextBlock Text="{Binding RoomName}" 
+                                      Tag="{Binding}" 
+                                      FontSize="16" 
+                                      Foreground="White" 
+                                      VerticalAlignment="Center" 
+                                      DockPanel.Dock="Left"/>
+
+                                    <Button Content="입장" Width="60" Height="30" Margin="10,0,0,0"
+                            Background="#00CED1" Foreground="Black"
+                            Click="EnterRoom_Click"
+                            HorizontalAlignment="Right"
+                            DataContext="{Binding}"/>
+                                </DockPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

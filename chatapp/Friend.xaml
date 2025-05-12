@@ -1,0 +1,52 @@
+﻿<Window x:Class="chatapp.Friend"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="친구 목록" Height="800" Width="500"
+        WindowStartupLocation="CenterScreen" Background="#1e1e1e">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20">
+
+            <!-- 👤 내 프로필 -->
+            <Border Background="#2c2c2c" Padding="15" CornerRadius="10" Margin="0,0,0,20">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="60" Height="60" Fill="Gray"/>
+                    <StackPanel Margin="10,0,0,0">
+                        <TextBlock x:Name="ProfileNameText" Text="내 닉네임" FontSize="18" Foreground="White"/>
+                        <TextBlock x:Name="StatusMessageText" Text="상태 메시지" Foreground="LightGray"/>
+                    </StackPanel>
+                    <Button Content="친구 추가" Width="100" Height="40" Margin="160,0,0,0"
+                            HorizontalAlignment="Right" Click="AddFriendButton_Click"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 📌 친구 추가 모달 -->
+            <Grid x:Name="AddFriendModal" Background="#99000000" Visibility="Collapsed" 
+                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <Border Width="300" Height="200" Background="#2c2c2c" CornerRadius="10" 
+                        VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20">
+                        <TextBlock Text="친구신청번호 입력" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+                        <TextBox x:Name="FriendIndexInput" Height="30" FontSize="14" Width="200"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
+                            <Button Content="요청" Width="80" Margin="5,0" Click="SendFriendRequest_Click"/>
+                            <Button Content="취소" Width="80" Margin="5,0" Click="CancelFriendRequest_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- 📩 친구 요청 대기 목록 -->
+            <Expander Header="친구 요청" Foreground="White" Margin="0,20,0,0" IsExpanded="True">
+                <StackPanel x:Name="RequestListPanel" />
+            </Expander>
+
+            <!-- 👥 친구 목록 -->
+            <Expander Header="친구 목록" Foreground="White" Margin="0,20,0,0" IsExpanded="True">
+                <StackPanel x:Name="FriendListPanel" />
+            </Expander>
+
+            <Button Content="나가기" Width="100" Height="30" Margin="0,20,0,0" 
+                    HorizontalAlignment="Center" Click="ExitButton_Click"/>
+        </StackPanel>
+    </ScrollViewer>
+</Window>
