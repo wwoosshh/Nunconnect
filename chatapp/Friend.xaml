@@ -1,35 +1,373 @@
 ﻿<Window x:Class="chatapp.Friend"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="친구 목록" Height="800" Width="500"
-        WindowStartupLocation="CenterScreen" Background="#1e1e1e">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="20">
-            <!-- 👤 내 프로필 -->
-            <Border Background="#2c2c2c" Padding="15" CornerRadius="10" Margin="0,0,0,20">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="60" Height="60" Fill="Gray"/>
-                    <StackPanel Margin="10,0,0,0">
-                        <TextBlock x:Name="ProfileNameText" Text="내 닉네임" FontSize="18" Foreground="White"/>
-                        <TextBlock x:Name="StatusMessageText" Text="상태 메시지" Foreground="LightGray"/>
+        Title="Connect" Height="800" Width="500"
+        WindowStartupLocation="CenterScreen"
+        Background="White"
+        FontFamily="Segoe UI"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        BorderThickness="0"
+        Loaded="Window_Loaded"
+        Icon="Ccon.ico">
+
+    <Window.Resources>
+        <!-- 기본 색상 리소스 -->
+        <SolidColorBrush x:Key="PrimaryColor" Color="#4A86E8"/>
+        <SolidColorBrush x:Key="SecondaryColor" Color="#E8F0FE"/>
+        <SolidColorBrush x:Key="AccentColor" Color="#34A853"/>
+        <SolidColorBrush x:Key="ErrorColor" Color="#EA4335"/>
+
+        <!-- 텍스트 버튼 스타일 -->
+        <Style x:Key="TextButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                              BorderBrush="{TemplateBinding BorderBrush}" 
+                              BorderThickness="{TemplateBinding BorderThickness}" 
+                              CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.8"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Opacity" Value="0.6"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 기본 버튼 스타일 -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PrimaryColor}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                              BorderBrush="{TemplateBinding BorderBrush}" 
+                              BorderThickness="{TemplateBinding BorderThickness}" 
+                              CornerRadius="20">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.9"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Opacity" Value="0.8"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 친구 리스트 항목 스타일 -->
+        <Style x:Key="FriendListItem" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="15"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.1" Color="Black"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 슬라이드 인 애니메이션 -->
+        <Storyboard x:Key="SlideInStoryboard">
+            <ThicknessAnimation Storyboard.TargetName="SidePanel"
+                            Storyboard.TargetProperty="Margin"
+                            From="-250,0,0,0" To="0,0,0,0"
+                            Duration="0:0:0.3">
+                <ThicknessAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </ThicknessAnimation.EasingFunction>
+            </ThicknessAnimation>
+        </Storyboard>
+
+        <!-- 슬라이드 아웃 애니메이션 -->
+        <Storyboard x:Key="SlideOutStoryboard">
+            <ThicknessAnimation Storyboard.TargetName="SidePanel"
+                            Storyboard.TargetProperty="Margin"
+                            From="0,0,0,0" To="-250,0,0,0"
+                            Duration="0:0:0.3">
+                <ThicknessAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseIn"/>
+                </ThicknessAnimation.EasingFunction>
+            </ThicknessAnimation>
+        </Storyboard>
+    </Window.Resources>
+
+    <!-- 창 테두리 그림자 -->
+    <Window.Effect>
+        <DropShadowEffect BlurRadius="20" ShadowDepth="0" Opacity="0.3" Color="Black"/>
+    </Window.Effect>
+
+    <!-- 윈도우 템플릿 -->
+    <Window.Template>
+        <ControlTemplate TargetType="Window">
+            <Border BorderThickness="0" Background="{TemplateBinding Background}" CornerRadius="20">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="40"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 커스텀 타이틀바 -->
+                    <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0">
+                            <Button x:Name="MinimizeButton" Content="—" Width="26" Height="26" Click="MinimizeButton_Click" 
+                                   Style="{StaticResource TextButton}" Foreground="#888888" FontWeight="Bold"/>
+                            <Button x:Name="CloseButton" Content="✕" Width="26" Height="26" Click="CloseButton_Click" 
+                                   Style="{StaticResource TextButton}" Foreground="#888888" FontWeight="Bold"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 메인 컨텐츠 -->
+                    <ContentPresenter Grid.Row="1" Content="{TemplateBinding Content}"/>
+                </Grid>
+            </Border>
+        </ControlTemplate>
+    </Window.Template>
+
+    <Grid>
+        <!-- 배경 -->
+        <Rectangle Fill="#FAFAFA" RadiusX="20" RadiusY="20"/>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- 상단바 -->
+            <Grid Grid.Row="0" Margin="0,0,0,15">
+                <Border Background="{StaticResource PrimaryColor}" Height="80" VerticalAlignment="Top">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.2" Color="Black"/>
+                    </Border.Effect>
+                </Border>
+
+                <Border Background="White" Height="100" VerticalAlignment="Bottom" CornerRadius="20,20,0,0" Margin="0,50,0,0">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.1" Color="Black"/>
+                    </Border.Effect>
+                </Border>
+
+                <Grid Margin="20,15,20,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
+                        <Button x:Name="MenuButton" Content="☰" Width="40" Height="40" Background="Transparent" 
+                               Foreground="White" FontSize="20" Click="ToggleSidePanel_Click" 
+                               BorderThickness="0" Cursor="Hand"/>
+
+                        <TextBlock Text="내 친구" Foreground="White" FontSize="22" 
+                                 FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0"/>
                     </StackPanel>
-                    <Button Content="친구 추가" Width="100" Height="40" Margin="160,0,0,0"
-                            HorizontalAlignment="Right" Click="AddFriendButton_Click"/>
+
+                    <Button Content="친구 추가 +" Width="120" Height="35" Style="{StaticResource PrimaryButton}"
+                           HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,0,0"
+                           Background="#00CED1" Foreground="White" FontWeight="SemiBold"
+                           Click="AddFriendButton_Click"/>
+                </Grid>
+            </Grid>
+
+            <!-- 메인 콘텐츠 영역 -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="20,0,20,20">
+                <StackPanel>
+                    <!-- 내 프로필 카드 -->
+                    <Border Background="White" CornerRadius="15" Padding="20" Margin="0,0,0,20">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.1" Color="Black"/>
+                        </Border.Effect>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Width="60" Height="60" Background="{StaticResource SecondaryColor}" 
+                                   CornerRadius="30" Grid.Column="0">
+                                <TextBlock Text="👤" FontSize="30" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+
+                            <StackPanel Grid.Column="1" Margin="15,0,0,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="ProfileNameText" Text="내 닉네임" FontSize="18" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="StatusMessageText" Text="상태 메시지" Foreground="#888888" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 친구 요청 섹션 -->
+                    <Expander Margin="0,0,0,15" IsExpanded="True">
+                        <Expander.Header>
+                            <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Expander}}">
+                                <TextBlock Text="친구 요청" FontSize="18" FontWeight="SemiBold" Foreground="#333333"/>
+                            </Grid>
+                        </Expander.Header>
+                        <Border Background="White" CornerRadius="15" Padding="15" Margin="0,10,0,0">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.1" Color="Black"/>
+                            </Border.Effect>
+                            <StackPanel x:Name="RequestListPanel">
+                                <TextBlock Text="친구 요청을 불러오는 중..." Foreground="#888888" HorizontalAlignment="Center" Margin="0,10,0,10" 
+                                         Visibility="Visible" x:Name="RequestLoadingText"/>
+                            </StackPanel>
+                        </Border>
+                    </Expander>
+
+                    <!-- 친구 목록 섹션 -->
+                    <Expander Margin="0,0,0,15" IsExpanded="True">
+                        <Expander.Header>
+                            <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Expander}}">
+                                <TextBlock Text="친구 목록" FontSize="18" FontWeight="SemiBold" Foreground="#333333"/>
+                            </Grid>
+                        </Expander.Header>
+                        <Border Background="White" CornerRadius="15" Padding="15" Margin="0,10,0,0">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.1" Color="Black"/>
+                            </Border.Effect>
+                            <StackPanel x:Name="FriendListPanel">
+                                <TextBlock Text="친구 목록을 불러오는 중..." Foreground="#888888" HorizontalAlignment="Center" Margin="0,10,0,10" 
+                                         Visibility="Visible" x:Name="FriendLoadingText"/>
+                            </StackPanel>
+                        </Border>
+                    </Expander>
+
+                    <!-- 하단 버튼 -->
+                    <Button Content="뒤로 가기" Height="45" Style="{StaticResource PrimaryButton}" Click="ExitButton_Click" 
+                           HorizontalAlignment="Center" Width="150" Margin="0,10,0,20"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 로딩 인디케이터 -->
+            <Border x:Name="LoadingIndicator" Grid.Row="1" Background="#80000000" Visibility="Collapsed"
+                  CornerRadius="10" Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Width="200" Height="100">
+                <StackPanel>
+                    <TextBlock Text="불러오는 중..." Foreground="White" FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                    <ProgressBar IsIndeterminate="True" Height="5" Background="Transparent" Foreground="White"/>
                 </StackPanel>
             </Border>
+        </Grid>
 
-            <!-- 📩 친구 요청 대기 목록 -->
-            <Expander Header="친구 요청" Foreground="White" Margin="0,20,0,0" IsExpanded="True">
-                <StackPanel x:Name="RequestListPanel" />
-            </Expander>
+        <!-- 사이드 패널 -->
+        <Grid x:Name="SidePanel" Width="250" HorizontalAlignment="Left" Background="#FFFFFF" 
+             Visibility="Collapsed" Margin="-250,0,0,0" Panel.ZIndex="1"
+             VerticalAlignment="Stretch">
+            <Border CornerRadius="20,0,20,20">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.2" Color="Black"/>
+                </Border.Effect>
 
-            <!-- 👥 친구 목록 -->
-            <Expander Header="친구 목록" Foreground="White" Margin="0,20,0,0" IsExpanded="True">
-                <StackPanel x:Name="FriendListPanel" />
-            </Expander>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-            <Button Content="나가기" Width="100" Height="30" Margin="0,20,0,0" 
-                    HorizontalAlignment="Center" Click="ExitButton_Click"/>
-        </StackPanel>
-    </ScrollViewer>
+                    <!-- 사이드패널 헤더 -->
+                    <Border Grid.Row="0" Background="{StaticResource PrimaryColor}" Height="100" CornerRadius="20,0,0,0">
+                        <Grid>
+                            <Button Content="✕" FontSize="16" FontWeight="Bold" 
+                                  Style="{StaticResource TextButton}" Foreground="White" 
+                                  HorizontalAlignment="Right" VerticalAlignment="Top" 
+                                  Margin="0,10,10,0" Click="CloseSidePanel_Click"/>
+
+                            <TextBlock Text="Connect" FontSize="22" FontWeight="SemiBold" 
+                                    Foreground="White" HorizontalAlignment="Left" 
+                                    VerticalAlignment="Center" Margin="20,10,0,0"/>
+
+                            <TextBlock Text="메뉴" FontSize="14" Foreground="White" Opacity="0.8"
+                                    HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="20,0,0,10"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- 메뉴 목록 -->
+                    <StackPanel Grid.Row="1" Margin="0,20,0,0">
+                        <!-- 프로필 -->
+                        <Grid Margin="15,0,15,0" Cursor="Hand" MouseLeftButtonDown="OpenProfile_Click">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Width="36" Height="36" Background="#F2F2F2" CornerRadius="18"
+                                   Margin="0,0,10,0">
+                                <TextBlock Text="👤" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="프로필" FontSize="16" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- 구분선 -->
+                        <Border Height="1" Background="#F2F2F2" Margin="15,15,15,15"/>
+
+                        <!-- 내 친구 -->
+                        <Grid Margin="15,0,15,15" Cursor="Hand" MouseLeftButtonDown="OpenFriend_Click">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Width="36" Height="36" Background="#F2F2F2" CornerRadius="18"
+                                   Margin="0,0,10,0">
+                                <TextBlock Text="👥" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="내 친구" FontSize="16" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- 채팅 목록 -->
+                        <Grid Margin="15,0,15,15" Cursor="Hand" MouseLeftButtonDown="OpenChatList_Click">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Width="36" Height="36" Background="#F2F2F2" CornerRadius="18"
+                                   Margin="0,0,10,0">
+                                <TextBlock Text="💬" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="채팅 목록" FontSize="16" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- 앱 설정 -->
+                        <Grid Margin="15,0,15,15" Cursor="Hand" MouseLeftButtonDown="OpenSettings_Click">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Width="36" Height="36" Background="#F2F2F2" CornerRadius="18"
+                                   Margin="0,0,10,0">
+                                <TextBlock Text="⚙️" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="앱 설정" FontSize="16" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- 구분선 -->
+                        <Border Height="1" Background="#F2F2F2" Margin="15,15,15,15"/>
+
+                        <!-- 앱 정보 -->
+                        <Grid Margin="15,30,15,15" HorizontalAlignment="Center">
+                            <TextBlock Text="Connect v1.4.0" FontSize="12" Foreground="#8E8E93" 
+                                     HorizontalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
 </Window>

@@ -6,11 +6,12 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Newtonsoft.Json;
 using static chatapp.MainWindow;
 using System.Net.Http;
 using System.Net.Http.Json;
-using static System.Net.WebRequestMethods;
+using System.Threading.Tasks;
 
 namespace chatapp
 {
@@ -22,11 +23,61 @@ namespace chatapp
         {
             InitializeComponent();
             _currentUser = user;
-            this.Loaded += (s, e) => LoadUserJoinedRooms();
         }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // 로딩 상태 표시
+            LoadingText.Visibility = Visibility.Visible;
+
+            // 채팅방 목록 로드
+            LoadUserJoinedRooms();
+        }
+
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left)
+                this.DragMove();
+        }
+
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.WindowState = WindowState.Minimized;
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            Application.Current.Shutdown();
+        }
+
+        private void ToggleSidePanel_Click(object sender, RoutedEventArgs e)
+        {
+            SidePanel.Visibility = Visibility.Visible;
+            var slideIn = (Storyboard)FindResource("SlideInStoryboard");
+            slideIn.Begin();
+        }
+
+        private void CloseSidePanel_Click(object sender, RoutedEventArgs e)
+        {
+            var slideOut = (Storyboard)FindResource("SlideOutStoryboard");
+            slideOut.Completed += (s, _) => SidePanel.Visibility = Visibility.Collapsed;
+            slideOut.Begin();
+        }
+
         private void CreateRoom_Click(object sender, RoutedEventArgs e)
         {
+            // 다른 패널 닫기
+            JoinRoomPanel.Visibility = Visibility.Collapsed;
+            DeleteRoomPanel.Visibility = Visibility.Collapsed;
+
+            // 패널 표시
             CreateRoomPanel.Visibility = Visibility.Visible;
+            CreateRoomPanel.Opacity = 0;
+            CreateRoomPanel.Margin = new Thickness(0, 20, 0, 0);
+
+            // 페이드 인 애니메이션 시작
+            var storyboard = (Storyboard)FindResource("PanelFadeInStoryboard");
+            storyboard.Begin(CreateRoomPanel);
         }
 
         private void CancelCreateRoom_Click(object sender, RoutedEventArgs e)
@@ -34,6 +85,7 @@ namespace chatapp
             CreateRoomPanel.Visibility = Visibility.Collapsed;
             RoomNameInput.Text = "";
             RoomPasswordInput.Password = "";
+            PrivateRoomCheckbox.IsChecked = false;
         }
 
         private async void ConfirmCreateRoom_Click(object sender, RoutedEventArgs e)
@@ -41,10 +93,11 @@ namespace chatapp
             string roomName = RoomNameInput.Text.Trim();
             string password = RoomPasswordInput.Password.Trim();
             string roomId = GenerateRoomId();
+            bool isPrivate = PrivateRoomCheckbox.IsChecked ?? false;
 
             if (string.IsNullOrEmpty(roomName) || string.IsNullOrEmpty(password))
             {
-                MessageBox.Show("채팅방 이름과 비밀번호를 입력해주세요.");
+                MessageBox.Show("채팅방 이름과 비밀번호를 입력해주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -55,7 +108,8 @@ namespace chatapp
                 RoomName = roomName,
                 Password = password,
                 RoomId = roomId,
-                UserId = _currentUser.Id
+                UserId = _currentUser.Id,
+                IsPrivate = isPrivate
             };
 
             try
@@ -68,25 +122,36 @@ namespace chatapp
                     var json = await response.Content.ReadAsStringAsync();
                     var result = JsonConvert.DeserializeAnonymousType(json, new { RoomId = "" });
 
-                    MessageBox.Show("채팅방 생성 완료!");
+                    MessageBox.Show("채팅방 생성 완료!", "성공", MessageBoxButton.OK, MessageBoxImage.Information);
                     Message roomWindow = new Message(_currentUser, roomId);
                     roomWindow.Show();
                     this.Close();
                 }
                 else
                 {
-                    MessageBox.Show("채팅방 생성 실패: " + await response.Content.ReadAsStringAsync());
+                    MessageBox.Show("채팅방 생성 실패: " + await response.Content.ReadAsStringAsync(), "오류", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("서버 오류: " + ex.Message);
+                MessageBox.Show("서버 오류: " + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void JoinRoom_Click(object sender, RoutedEventArgs e)
         {
+            // 다른 패널 닫기
+            CreateRoomPanel.Visibility = Visibility.Collapsed;
+            DeleteRoomPanel.Visibility = Visibility.Collapsed;
+
+            // 패널 표시
             JoinRoomPanel.Visibility = Visibility.Visible;
+            JoinRoomPanel.Opacity = 0;
+            JoinRoomPanel.Margin = new Thickness(0, 20, 0, 0);
+
+            // 페이드 인 애니메이션 시작
+            var storyboard = (Storyboard)FindResource("PanelFadeInStoryboard");
+            storyboard.Begin(JoinRoomPanel);
         }
 
         private void CancelJoinRoom_Click(object sender, RoutedEventArgs e)
@@ -103,7 +168,7 @@ namespace chatapp
 
             if (string.IsNullOrEmpty(roomName) || string.IsNullOrEmpty(password))
             {
-                MessageBox.Show("모든 정보를 입력해주세요.");
+                MessageBox.Show("모든 정보를 입력해주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -129,7 +194,7 @@ namespace chatapp
                         // 내 이름이 채팅방 이름에 포함되어 있는지 확인
                         if (!room.RoomName.Contains(_currentUser.Name))
                         {
-                            MessageBox.Show("1대1 채팅방은 참여자만 입장할 수 있습니다.");
+                            MessageBox.Show("1대1 채팅방은 참여자만 입장할 수 있습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
                             return;
                         }
                     }
@@ -159,12 +224,12 @@ namespace chatapp
                 }
                 else
                 {
-                    MessageBox.Show("채팅방 입장 실패: " + await response.Content.ReadAsStringAsync());
+                    MessageBox.Show("채팅방 입장 실패: " + await response.Content.ReadAsStringAsync(), "오류", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("서버 오류: " + ex.Message);
+                MessageBox.Show("서버 오류: " + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -173,13 +238,14 @@ namespace chatapp
             try
             {
                 using HttpClient client = new HttpClient();
-                string baseUrl = AppSettings.GetServerUrl(); // 🔥 고정된 ngrok 주소 사용
+                string baseUrl = AppSettings.GetServerUrl();
 
-                // 🔵 1. 현재 로그인한 유저 정보를 서버에서 가져옴
+                // 현재 로그인한 유저 정보를 서버에서 가져옴
                 var userResponse = await client.GetAsync($"{baseUrl}/api/User/getUser?userId={_currentUser.Id}");
                 if (!userResponse.IsSuccessStatusCode)
                 {
-                    MessageBox.Show("유저 정보를 불러오지 못했습니다.");
+                    MessageBox.Show("유저 정보를 불러오지 못했습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                    LoadingText.Visibility = Visibility.Collapsed;
                     return;
                 }
                 var userJson = await userResponse.Content.ReadAsStringAsync();
@@ -187,15 +253,17 @@ namespace chatapp
 
                 if (currentUser == null)
                 {
-                    MessageBox.Show("유저 정보를 해석할 수 없습니다.");
+                    MessageBox.Show("유저 정보를 해석할 수 없습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                    LoadingText.Visibility = Visibility.Collapsed;
                     return;
                 }
 
-                // 🔵 2. 전체 채팅방 리스트를 서버에서 가져옴
+                // 전체 채팅방 리스트를 서버에서 가져옴
                 var chatListResponse = await client.GetAsync($"{baseUrl}/api/User/getChatList");
                 if (!chatListResponse.IsSuccessStatusCode)
                 {
-                    MessageBox.Show("채팅방 목록을 불러오지 못했습니다.");
+                    MessageBox.Show("채팅방 목록을 불러오지 못했습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                    LoadingText.Visibility = Visibility.Collapsed;
                     return;
                 }
                 var chatListJson = await chatListResponse.Content.ReadAsStringAsync();
@@ -203,11 +271,12 @@ namespace chatapp
 
                 if (allRooms == null)
                 {
-                    MessageBox.Show("채팅방 목록을 해석할 수 없습니다.");
+                    MessageBox.Show("채팅방 목록을 해석할 수 없습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                    LoadingText.Visibility = Visibility.Collapsed;
                     return;
                 }
 
-                // 🔵 3. 사용자가 가입한 채팅방만 필터링
+                // 사용자가 가입한 채팅방만 필터링
                 var joinedRooms = allRooms
                     .Where(r => currentUser.JoinedRoomIds.Contains(r.RoomId))
                     .Select(r => new DisplayRoom
@@ -216,18 +285,35 @@ namespace chatapp
                         RoomId = r.RoomId
                     }).ToList();
 
+                // 채팅방 목록 표시
                 RoomListControl.ItemsSource = joinedRooms;
+
+                // 로딩 텍스트 숨김
+                LoadingText.Visibility = Visibility.Collapsed;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("서버 오류: " + ex.Message);
+                LoadingText.Visibility = Visibility.Collapsed;
+                MessageBox.Show("서버 오류: " + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void ManageRooms_Click(object sender, RoutedEventArgs e)
         {
+            // 다른 패널 닫기
+            CreateRoomPanel.Visibility = Visibility.Collapsed;
+            JoinRoomPanel.Visibility = Visibility.Collapsed;
+
+            // 패널 표시
             DeleteRoomPanel.Visibility = Visibility.Visible;
+            DeleteRoomPanel.Opacity = 0;
+            DeleteRoomPanel.Margin = new Thickness(0, 20, 0, 0);
+
+            // 페이드 인 애니메이션 시작
+            var storyboard = (Storyboard)FindResource("PanelFadeInStoryboard");
+            storyboard.Begin(DeleteRoomPanel);
         }
+
         private void CancelDeleteRoom_Click(object sender, RoutedEventArgs e)
         {
             DeleteRoomPanel.Visibility = Visibility.Collapsed;
@@ -235,6 +321,7 @@ namespace chatapp
             DeleteRoomIdInput.Text = "";
             DeleteRoomPasswordInput.Password = "";
         }
+
         private async Task<bool> VerifyRoomPassword(string roomId, string roomName, string password)
         {
             try
@@ -254,11 +341,12 @@ namespace chatapp
             }
             catch (Exception ex)
             {
-                MessageBox.Show("서버 오류: " + ex.Message);
+                MessageBox.Show("서버 오류: " + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
 
             return false;
         }
+
         private async void ConfirmDeleteRoom_Click(object sender, RoutedEventArgs e)
         {
             string roomName = DeleteRoomNameInput.Text.Trim();
@@ -267,15 +355,24 @@ namespace chatapp
 
             if (string.IsNullOrEmpty(roomName) || string.IsNullOrEmpty(roomId) || string.IsNullOrEmpty(password))
             {
-                MessageBox.Show("모든 정보를 입력하세요.");
+                MessageBox.Show("모든 정보를 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
+
+            MessageBoxResult confirmResult = MessageBox.Show(
+                "정말로 이 채팅방을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+                "삭제 확인",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (confirmResult != MessageBoxResult.Yes)
+                return;
 
             bool isPasswordCorrect = await VerifyRoomPassword(roomId, roomName, password);
 
             if (!isPasswordCorrect)
             {
-                MessageBox.Show("입력한 정보와 일치하는 채팅방을 찾을 수 없습니다.");
+                MessageBox.Show("입력한 정보와 일치하는 채팅방을 찾을 수 없습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -286,13 +383,13 @@ namespace chatapp
 
             if (deleteResponse.IsSuccessStatusCode)
             {
-                MessageBox.Show("채팅방 삭제 완료!");
+                MessageBox.Show("채팅방 삭제 완료!", "성공", MessageBoxButton.OK, MessageBoxImage.Information);
                 CancelDeleteRoom_Click(null, null); // 패널 숨기기
                 LoadUserJoinedRooms(); // 새로고침
             }
             else
             {
-                MessageBox.Show("삭제 실패: " + await deleteResponse.Content.ReadAsStringAsync());
+                MessageBox.Show("삭제 실패: " + await deleteResponse.Content.ReadAsStringAsync(), "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -311,6 +408,32 @@ namespace chatapp
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             var random = new Random();
             return new string(Enumerable.Repeat(chars, 16).Select(s => s[random.Next(s.Length)]).ToArray());
+        }
+
+        private void OpenProfile_Click(object sender, MouseButtonEventArgs e)
+        {
+            Profile profileWindow = new Profile(_currentUser);
+            profileWindow.Owner = this;
+            profileWindow.ShowDialog();
+        }
+
+        private void OpenFriend_Click(object sender, MouseButtonEventArgs e)
+        {
+            Friend friendWindow = new Friend(_currentUser, null);
+            friendWindow.Show();
+            this.Close();
+        }
+
+        private void OpenChatList_Click(object sender, MouseButtonEventArgs e)
+        {
+            ChatList chatListWindow = new ChatList(_currentUser);
+            chatListWindow.Show();
+            this.Close();
+        }
+
+        private void OpenSettings_Click(object sender, MouseButtonEventArgs e)
+        {
+            MessageBox.Show("설정 기능은 아직 구현 중입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         public class RoomInfo

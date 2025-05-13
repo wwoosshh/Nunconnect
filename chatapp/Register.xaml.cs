@@ -6,6 +6,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media.Animation;
 using static chatapp.MainWindow;
 
 namespace chatapp
@@ -67,7 +69,86 @@ namespace chatapp
                 MessageBox.Show($"회원가입 실패: {await response.Content.ReadAsStringAsync()}");
             }
         }
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // 헤더 애니메이션
+            var headerStoryboard = new Storyboard();
+            var headerAnimation = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = TimeSpan.FromSeconds(0.5),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(headerAnimation, HeaderPanel);
+            Storyboard.SetTargetProperty(headerAnimation, new PropertyPath("Opacity"));
+            headerStoryboard.Children.Add(headerAnimation);
+            headerStoryboard.Begin();
 
+            // 등록 패널 애니메이션 (약간 지연)
+            var registerStoryboard = new Storyboard();
+            var registerAnimation = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = TimeSpan.FromSeconds(0.5),
+                BeginTime = TimeSpan.FromSeconds(0.2),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(registerAnimation, RegisterPanel);
+            Storyboard.SetTargetProperty(registerAnimation, new PropertyPath("Opacity"));
+            registerStoryboard.Children.Add(registerAnimation);
+            registerStoryboard.Begin();
+
+            // 버튼 패널 애니메이션 (더 지연)
+            var buttonsStoryboard = new Storyboard();
+            var buttonsAnimation = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = TimeSpan.FromSeconds(0.5),
+                BeginTime = TimeSpan.FromSeconds(0.4),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(buttonsAnimation, ButtonsPanel);
+            Storyboard.SetTargetProperty(buttonsAnimation, new PropertyPath("Opacity"));
+            buttonsStoryboard.Children.Add(buttonsAnimation);
+            buttonsStoryboard.Begin();
+        }
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left)
+                this.DragMove();
+        }
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.WindowState = WindowState.Minimized;
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            var fadeOut = new DoubleAnimation
+            {
+                From = 1,
+                To = 0,
+                Duration = TimeSpan.FromSeconds(0.2),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            fadeOut.Completed += (s, args) => this.Close();
+            this.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            var fadeOut = new DoubleAnimation
+            {
+                From = 1,
+                To = 0,
+                Duration = TimeSpan.FromSeconds(0.2)
+            };
+            fadeOut.Completed += (s, args) => this.Close();
+            this.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+        }
         private async void SendVerificationButton_Click(object sender, RoutedEventArgs e)
         {
             if (!_userRegistered || string.IsNullOrEmpty(_registeredEmail))

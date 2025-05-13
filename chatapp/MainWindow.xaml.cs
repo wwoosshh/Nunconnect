@@ -1,31 +1,61 @@
 ﻿using System;
 using System.Diagnostics;
-using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
+using System.Windows.Input;
+using System.Windows.Media.Animation;
+using System.Security.Cryptography;
 using Newtonsoft.Json;
 using System.Net.Http.Json;
-using static System.Net.WebRequestMethods;
-using System.Windows.Input;
-using System.Text;
-using System.Security.Cryptography;
+using System.Collections.Generic;
 
 namespace chatapp
 {
     public partial class MainWindow : Window
     {
+        private const string CurrentVersion = "1.4.0";
+
         public MainWindow()
         {
             InitializeComponent();
             IdTextBox.TextChanged += IdTextBox_TextChanged;
             PasswordBox.PasswordChanged += PasswordBox_PasswordChanged;
-
-            // ✅ 실행 시 버전 검사
-            CheckAppVersion();
         }
-        private const string CurrentVersion = "1.4.0"; // ✅ 클라이언트 현재 버전 명시
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // 애니메이션 시작
+            var logoStoryboard = (Storyboard)FindResource("LogoFadeInStoryboard");
+            logoStoryboard.Begin();
+
+            var loginFormStoryboard = (Storyboard)FindResource("LoginFormFadeInStoryboard");
+            loginFormStoryboard.Begin();
+
+            // 버전 검사
+            CheckAppVersion();
+
+            // 포커스 설정
+            IdTextBox.Focus();
+        }
+
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left)
+                this.DragMove();
+        }
+
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.WindowState = WindowState.Minimized;
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            Application.Current.Shutdown();
+        }
+
         private async void CheckAppVersion()
         {
             try
@@ -50,17 +80,17 @@ namespace chatapp
                         // 홈페이지 열고 프로그램 종료
                         Process.Start(new ProcessStartInfo
                         {
-                            FileName = "https://nunconnect.netlify.app/", // ✅ 홈페이지 주소
+                            FileName = "https://nunconnect.netlify.app/",
                             UseShellExecute = true
                         });
 
-                        Application.Current.Shutdown(); // 프로그램 종료
+                        Application.Current.Shutdown();
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("버전 확인 실패: " + ex.Message);
+                MessageBox.Show("버전 확인 실패: " + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -69,7 +99,21 @@ namespace chatapp
             string id = IdTextBox.Text.Trim();
             string pw = PasswordBox.Password.Trim();
 
+            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(pw))
+            {
+                MessageBox.Show("아이디와 비밀번호를 입력하세요.", "로그인 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // 로그인 버튼 비활성화 및 로딩 표시
+            LoginButton.IsEnabled = false;
+            LoadingIndicator.Visibility = Visibility.Visible;
+
             var user = await ValidateCredentialsFromServer(id, pw);
+
+            // 로딩 숨김 및 버튼 다시 활성화
+            LoadingIndicator.Visibility = Visibility.Collapsed;
+            LoginButton.IsEnabled = true;
 
             if (user != null)
             {
@@ -78,15 +122,10 @@ namespace chatapp
                 this.Close();
             }
         }
-        private string GetServerUrl()
-        {
-            bool isServerPc = true;
-            return isServerPc ? "http://localhost:5159" : "http://nunconnect.duckdns.org:5159";
-        }
 
-        private async Task<UserData?> ValidateCredentialsFromServer(string id, string pw)
+        private async Task<UserData> ValidateCredentialsFromServer(string id, string pw)
         {
-            string hashedPw = HashPassword(pw); // 로그인 시에도 해싱 후 비교
+            string hashedPw = HashPassword(pw);
 
             try
             {
@@ -104,12 +143,19 @@ namespace chatapp
                 }
                 else
                 {
-                    MessageBox.Show("로그인 실패: 아이디 또는 비밀번호가 잘못되었습니다.");
+                    // 서버에서 오는 에러 메시지 표시
+                    string errorMessage = await response.Content.ReadAsStringAsync();
+                    if (string.IsNullOrEmpty(errorMessage))
+                    {
+                        errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
+                    }
+
+                    MessageBox.Show(errorMessage, "로그인 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("서버 오류: " + ex.Message);
+                MessageBox.Show($"서버 연결 오류: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
 
             return null;
@@ -121,6 +167,7 @@ namespace chatapp
             byte[] hashBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
             return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
         }
+
         private void SignupButton_Click(object sender, RoutedEventArgs e)
         {
             Register registerWindow = new Register();
@@ -133,6 +180,7 @@ namespace chatapp
                 ? Visibility.Visible
                 : Visibility.Hidden;
         }
+
         private void InputBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -147,36 +195,19 @@ namespace chatapp
                 ? Visibility.Visible
                 : Visibility.Hidden;
         }
+
         public class UserData
         {
             public int Index { get; set; }
-
             public string Id { get; set; } = string.Empty;
-
             public string Password { get; set; } = string.Empty;
-
             public string Name { get; set; } = string.Empty;
-            public string Email { get; set; }
+            public string Email { get; set; } = string.Empty;
             public string ProfileImage { get; set; } = string.Empty;
-
             public string StatusMessage { get; set; } = string.Empty;
             public List<string> JoinedRoomIds { get; set; } = new();
-
         }
-        public class RoomInfo
-        {
-            // 채팅방 이름
-            public string RoomName { get; set; } = string.Empty;
 
-            // 고유 채팅방 ID (16자리 문자열)
-            public string RoomId { get; set; } = string.Empty;
-
-            // 생성 시각
-            public DateTime CreatedAt { get; set; }
-
-            // 마지막 채팅 시각 (선택적 사용)
-            public DateTime LastActive { get; set; }
-        }
         public class VersionResponse
         {
             public string Version { get; set; } = string.Empty;

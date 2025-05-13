@@ -1,85 +1,256 @@
 ﻿<Window x:Class="chatapp.Profile"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Icon="Ccon.ico"
-        Title="프로필 설정" Height="800" Width="500"
+        Title="Connect"
+        Height="600" Width="400"
         WindowStartupLocation="CenterScreen"
-        Background="#7B8B97" ResizeMode="NoResize" WindowStyle="None">
+        Background="White"
+        FontFamily="Segoe UI"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        BorderThickness="0"
+        Loaded="Window_Loaded"
+        Icon="Ccon.ico">
+
+    <!-- 창 테두리 그림자 및 모서리 둥글게 -->
+    <Window.Effect>
+        <DropShadowEffect BlurRadius="20" ShadowDepth="0" Opacity="0.3" Color="Black"/>
+    </Window.Effect>
+
+    <Window.Resources>
+        <!-- 색상 리소스 -->
+        <SolidColorBrush x:Key="PrimaryColor" Color="#007AFF"/>
+        <SolidColorBrush x:Key="SecondaryColor" Color="#5AC8FA"/>
+
+        <!-- 텍스트 버튼 스타일 -->
+        <Style x:Key="TextButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#007AFF"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                              CornerRadius="4" 
+                              Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#5AC8FA"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 기본 버튼 스타일 -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PrimaryColor}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                              CornerRadius="8" 
+                              Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.9"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.8"/>
+                                <Setter TargetName="border" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.98" ScaleY="0.98"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 보조 버튼 스타일 -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryColor}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryColor}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                              BorderBrush="{TemplateBinding BorderBrush}"
+                              BorderThickness="{TemplateBinding BorderThickness}"
+                              CornerRadius="8" 
+                              Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.9"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.8"/>
+                                <Setter TargetName="border" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.98" ScaleY="0.98"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Window.Template>
+        <ControlTemplate TargetType="Window">
+            <Border BorderThickness="0" Background="{TemplateBinding Background}" CornerRadius="20">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="40"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 커스텀 타이틀바 -->
+                    <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0">
+                            <Button x:Name="MinimizeButton" Content="—" Width="26" Height="26" Click="MinimizeButton_Click" 
+                                   Style="{StaticResource TextButton}" Foreground="#888888" FontWeight="Bold"/>
+                            <Button x:Name="CloseButton" Content="✕" Width="26" Height="26" Click="CloseButton_Click" 
+                                   Style="{StaticResource TextButton}" Foreground="#888888" FontWeight="Bold"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 메인 컨텐츠 -->
+                    <ContentPresenter Grid.Row="1" Content="{TemplateBinding Content}"/>
+                </Grid>
+            </Border>
+        </ControlTemplate>
+    </Window.Template>
 
     <Grid>
-        <!-- 상단바 -->
-        <Grid Height="50" VerticalAlignment="Top">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <!-- 배경 -->
+        <Rectangle>
+            <Rectangle.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#F5F5F7" Offset="0"/>
+                    <GradientStop Color="#FFFFFF" Offset="1"/>
+                </LinearGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
 
-            <Button Content="취소" Grid.Column="0" HorizontalAlignment="Left" Margin="15,10,0,0"
-                    Background="Transparent" Foreground="White" FontSize="14"
-                    BorderThickness="0" Click="Cancel_Click"/>
-            <Button Content="완료" Grid.Column="2" HorizontalAlignment="Right" Margin="0,10,15,0"
-                    Background="Transparent" Foreground="White" FontSize="14"
-                    BorderThickness="0" Click="Save_Click"/>
-        </Grid>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <!-- 휴지통 아이콘 (중앙) -->
-        <Image Source="Assets/trash.png" Width="24" Height="24" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+            <!-- 헤더 -->
+            <Grid Grid.Row="0" Margin="0,0,0,20">
+                <TextBlock Text="프로필 설정" FontSize="22" FontWeight="SemiBold" 
+                         HorizontalAlignment="Center" Margin="0,20,0,0"/>
 
-        <!-- 프로필 사진 -->
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-            <Grid Width="100" Height="100">
-                <Ellipse Fill="LightSlateGray"/>
-                <Image x:Name="ProfileImage" Stretch="Fill" ClipToBounds="True"/>
-                <Button Width="30" Height="30" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                        Margin="0,0,-10,-10" Click="ChangePhoto_Click"
-                        Background="White" BorderBrush="Transparent" Content="📷"/>
+                <!-- 상단 버튼 -->
+                <Grid>
+                    <Button Content="취소" HorizontalAlignment="Left" Margin="20,20,0,0"
+                          Style="{StaticResource TextButton}" Click="Cancel_Click"/>
+                    <Button Content="저장" HorizontalAlignment="Right" Margin="0,20,20,0"
+                          Style="{StaticResource TextButton}" Click="Save_Click"/>
+                </Grid>
             </Grid>
 
-            <!-- 이름 설정 -->
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,20,0,0">
-                <TextBlock Text="○" FontSize="20" Foreground="White"/>
-                <TextBox x:Name="UserNameBox" Width="150" FontSize="20" BorderBrush="Transparent"
-                         Background="Transparent" Foreground="White" TextAlignment="Center" Text="사용자 이름"/>
-                <Button Content="✏" Width="24" Height="24" Margin="5,0,0,0"
-                        Background="Transparent" Foreground="White" BorderThickness="0"/>
+            <!-- 프로필 컨텐츠 -->
+            <StackPanel Grid.Row="1" Margin="20,0" x:Name="ProfileContent" Opacity="0">
+                <!-- 프로필 이미지 -->
+                <Grid HorizontalAlignment="Center" Margin="0,10,0,30">
+                    <Ellipse Width="120" Height="120">
+                        <Ellipse.Fill>
+                            <SolidColorBrush Color="#E0E0E0"/>
+                        </Ellipse.Fill>
+                    </Ellipse>
+
+                    <!-- 이 부분을 수정: Image 컨트롤을 추가하고 이름을 ProfileImage로 지정 -->
+                    <Image x:Name="ProfileImage" Width="120" Height="120">
+                        <Image.Clip>
+                            <EllipseGeometry RadiusX="60" RadiusY="60" Center="60,60"/>
+                        </Image.Clip>
+                    </Image>
+
+                    <!-- 카메라 버튼 -->
+                    <Button HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                          Width="40" Height="40" Background="#007AFF"
+                          BorderThickness="0" Margin="0,0,5,5" Click="ChangePhoto_Click">
+                        <TextBlock Text="📷" FontSize="16" Foreground="White"/>
+                    </Button>
+                </Grid>
+
+                <!-- 사용자 이름 -->
+                <TextBlock Text="이름" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <Border Background="#F5F5F7" CornerRadius="10" Margin="0,0,0,20">
+                    <TextBox x:Name="UserNameBox" BorderThickness="0" Background="Transparent"
+                           Padding="15,12" FontSize="16"/>
+                </Border>
+
+                <!-- 상태 메시지 -->
+                <TextBlock Text="상태 메시지" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <Border Background="#F5F5F7" CornerRadius="10" Margin="0,0,0,20">
+                    <TextBox x:Name="StatusMessageBox" BorderThickness="0" Background="Transparent"
+                           Padding="15,12" FontSize="16" TextWrapping="Wrap" AcceptsReturn="True"
+                           Height="120" VerticalAlignment="Top" VerticalScrollBarVisibility="Auto"/>
+                </Border>
             </StackPanel>
 
-            <!-- 상태 메시지 -->
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,10,0,0">
-                <TextBox x:Name="StatusMessageBox" Width="250" FontSize="14"
-                         Background="Transparent" Foreground="White" TextAlignment="Center" BorderBrush="Transparent"
-                         Text="2023.09.18~2025.03.1"/>
-                <Button Content="✏" Width="24" Height="24" Margin="5,0,0,0"
-                        Background="Transparent" Foreground="White" BorderThickness="0"/>
+            <!-- 하단 버튼 -->
+            <StackPanel Grid.Row="2" Margin="20,20" Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Content="저장" Width="120" Height="45" Style="{StaticResource PrimaryButton}"
+                      Margin="0,0,10,0" Click="Save_Click"/>
+                <Button Content="취소" Width="120" Height="45" Style="{StaticResource SecondaryButton}"
+                      Click="Cancel_Click"/>
             </StackPanel>
-        </StackPanel>
+        </Grid>
 
-        <!-- 하단 메뉴 (구현 예정) -->
-        <DockPanel VerticalAlignment="Bottom" Height="60" Background="#7B8B97" Margin="0,0,0,10">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Button Width="40" Height="40" Margin="10" Background="Transparent" BorderThickness="0">
-                    <Image Source="Assets/camera_icon.png" Stretch="Uniform"/>
-                </Button>
-                <Button Width="40" Height="40" Margin="10" Background="Transparent" BorderThickness="0">
-                    <Image Source="Assets/star_icon.png" Stretch="Uniform"/>
-                </Button>
-                <Button Width="40" Height="40" Margin="10" Background="Transparent" BorderThickness="0">
-                    <Image Source="Assets/hand_icon.png" Stretch="Uniform"/>
-                </Button>
-                <Button Width="40" Height="40" Margin="10" Background="Transparent" BorderThickness="0">
-                    <Image Source="Assets/text_icon.png" Stretch="Uniform"/>
-                </Button>
-                <Button Width="40" Height="40" Margin="10" Background="Transparent" BorderThickness="0">
-                    <Image Source="Assets/calendar_icon.png" Stretch="Uniform"/>
-                </Button>
-                <Button Width="40" Height="40" Margin="10" Background="Transparent" BorderThickness="0">
-                    <Image Source="Assets/music_icon.png" Stretch="Uniform"/>
-                </Button>
-                <Button Width="40" Height="40" Margin="10" Background="Transparent" BorderThickness="0">
-                    <Image Source="Assets/smile_icon.png" Stretch="Uniform"/>
-                </Button>
+        <!-- 로딩 인디케이터 -->
+        <Border x:Name="LoadingIndicator" Background="#80000000" Visibility="Collapsed"
+              CornerRadius="10" Padding="20,15" HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+            <StackPanel>
+                <TextBlock Text="저장 중..." Foreground="White" HorizontalAlignment="Center"/>
+                <ProgressBar IsIndeterminate="True" Width="150" Height="5" Margin="0,10,0,0"/>
             </StackPanel>
-        </DockPanel>
+        </Border>
     </Grid>
 </Window>

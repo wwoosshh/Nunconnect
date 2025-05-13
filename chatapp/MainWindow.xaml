@@ -4,56 +4,254 @@
         Title="Connect"
         Height="800" Width="500"
         WindowStartupLocation="CenterScreen"
-        Icon="Ccon.ico"
-        ResizeMode="NoResize">
-    <Window.Background>
-        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="#270c44" Offset="0" />
-            <GradientStop Color="#7f1a93" Offset="1" />
+        Background="Transparent"
+        FontFamily="Segoe UI"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        BorderThickness="0"
+        Loaded="Window_Loaded"
+        Icon="Ccon.ico">
+
+    <Window.Resources>
+        <!-- 기본 색상 리소스 -->
+        <SolidColorBrush x:Key="PrimaryColor" Color="#4A86E8"/>
+        <SolidColorBrush x:Key="SecondaryColor" Color="#E8F0FE"/>
+        <SolidColorBrush x:Key="AccentColor" Color="#00CED1"/>
+        <SolidColorBrush x:Key="ErrorColor" Color="#EA4335"/>
+
+        <!-- 그라데이션 배경 -->
+        <LinearGradientBrush x:Key="BackgroundGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#4A86E8" Offset="0" />
+            <GradientStop Color="#7B68EE" Offset="1" />
         </LinearGradientBrush>
-    </Window.Background>
 
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="3*"/>
-            <RowDefinition Height="7*"/>
-        </Grid.RowDefinitions>
+        <!-- 입력 필드 스타일 -->
+        <Style x:Key="InputField" TargetType="Border">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="CornerRadius" Value="25"/>
+            <Setter Property="Padding" Value="15,0"/>
+            <Setter Property="Margin" Value="0,10"/>
+            <Setter Property="Height" Value="50"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.1" Color="Black"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-        <!-- 상단: 앱 이름 / 버전 -->
-        <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center">
-            <TextBlock Text="Connect" FontSize="30" FontWeight="Bold" Foreground="#00CED1" TextAlignment="Center" Margin="0,10,0,10"/>
-            <TextBlock Text="1.4.0 ver" FontSize="16" Foreground="#AFEEEE" TextAlignment="Center"/>
-        </StackPanel>
+        <!-- 텍스트 버튼 스타일 -->
+        <Style x:Key="TextButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                              BorderBrush="{TemplateBinding BorderBrush}" 
+                              BorderThickness="{TemplateBinding BorderThickness}" 
+                              CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.8"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Opacity" Value="0.6"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
 
-        <!-- 하단: 로그인 박스 -->
-        <StackPanel Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Width="300" Margin="0,0,0,50">
+        <!-- 기본 버튼 스타일 -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource AccentColor}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                              BorderBrush="{TemplateBinding BorderBrush}" 
+                              BorderThickness="{TemplateBinding BorderThickness}" 
+                              CornerRadius="25"
+                              Height="{TemplateBinding Height}"
+                              x:Name="ButtonBorder">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.2" Color="Black"/>
+                            </Border.Effect>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#00B5B8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#009B9E"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-            <!-- 아이디 입력 -->
-            <Grid>
-                <TextBox x:Name="IdTextBox" FontSize="14" Padding="10"
-                         Background="#008B8B" Foreground="White" BorderBrush="Transparent" KeyDown="InputBox_KeyDown"/>
-                <TextBlock x:Name="IdHint" Text="아이디" FontSize="14" Foreground="White"
-                           Margin="12,10,0,0" IsHitTestVisible="False"
-                           VerticalAlignment="Top" Visibility="Visible"/>
+        <!-- 보조 버튼 스타일 -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="White"/>
+            <Setter Property="Padding" Value="15,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                              BorderBrush="{TemplateBinding BorderBrush}" 
+                              BorderThickness="{TemplateBinding BorderThickness}" 
+                              CornerRadius="25"
+                              Height="{TemplateBinding Height}"
+                              x:Name="ButtonBorder">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#20FFFFFF"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#CFFFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#40FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 페이드 인 애니메이션 -->
+        <Storyboard x:Key="LogoFadeInStoryboard">
+            <DoubleAnimation Storyboard.TargetName="LogoStackPanel" 
+                           Storyboard.TargetProperty="Opacity"
+                           From="0" To="1" Duration="0:0:1"/>
+            <ThicknessAnimation Storyboard.TargetName="LogoStackPanel" 
+                              Storyboard.TargetProperty="Margin"
+                              From="0,30,0,0" To="0,0,0,0" Duration="0:0:1">
+                <ThicknessAnimation.EasingFunction>
+                    <ElasticEase EasingMode="EaseOut" Oscillations="1" Springiness="4"/>
+                </ThicknessAnimation.EasingFunction>
+            </ThicknessAnimation>
+        </Storyboard>
+
+        <Storyboard x:Key="LoginFormFadeInStoryboard">
+            <DoubleAnimation Storyboard.TargetName="LoginFormPanel" 
+                           Storyboard.TargetProperty="Opacity"
+                           From="0" To="1" Duration="0:0:1" BeginTime="0:0:0.5"/>
+            <ThicknessAnimation Storyboard.TargetName="LoginFormPanel" 
+                              Storyboard.TargetProperty="Margin"
+                              From="0,0,0,30" To="0,0,0,0" Duration="0:0:0.8" BeginTime="0:0:0.5">
+                <ThicknessAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </ThicknessAnimation.EasingFunction>
+            </ThicknessAnimation>
+        </Storyboard>
+    </Window.Resources>
+
+    <!-- 창 테두리 그림자 -->
+    <Window.Effect>
+        <DropShadowEffect BlurRadius="20" ShadowDepth="0" Opacity="0.4" Color="Black"/>
+    </Window.Effect>
+
+    <Border CornerRadius="25">
+        <!-- 배경 그라데이션 -->
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#4A86E8" Offset="0" />
+                <GradientStop Color="#3A5FBF" Offset="1" />
+            </LinearGradientBrush>
+        </Border.Background>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- 커스텀 타이틀바 -->
+            <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,15,0">
+                    <Button x:Name="MinimizeButton" Content="—" Width="26" Height="26" Click="MinimizeButton_Click" 
+                           Style="{StaticResource TextButton}" Foreground="White" FontWeight="Bold"/>
+                    <Button x:Name="CloseButton" Content="✕" Width="26" Height="26" Click="CloseButton_Click" 
+                           Style="{StaticResource TextButton}" Foreground="White" FontWeight="Bold"/>
+                </StackPanel>
             </Grid>
 
-            <!-- 비밀번호 입력 -->
-            <Grid Margin="0,15,0,0">
-                <PasswordBox x:Name="PasswordBox" FontSize="14" Padding="10"
-                             Background="#008B8B" Foreground="White" BorderBrush="Transparent" KeyDown="InputBox_KeyDown"/>
-                <TextBlock x:Name="PasswordHint" Text="비밀번호" FontSize="14" Foreground="White"
-                           Margin="12,10,0,0" IsHitTestVisible="False"
-                           VerticalAlignment="Top" Visibility="Visible"/>
+            <!-- 메인 컨텐츠 -->
+            <Grid Grid.Row="1" Margin="30">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="3*"/>
+                    <RowDefinition Height="7*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 로고 & 버전 -->
+                <StackPanel x:Name="LogoStackPanel" Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0">
+                    <TextBlock Text="Connect" FontSize="64" FontWeight="Bold" Foreground="White" TextAlignment="Center">
+                        <TextBlock.Effect>
+                            <DropShadowEffect BlurRadius="15" ShadowDepth="0" Opacity="0.6" Color="Black"/>
+                        </TextBlock.Effect>
+                    </TextBlock>
+                    <TextBlock Text="1.4.0 ver" FontSize="16" Foreground="#CCFFFFFF" TextAlignment="Center" Margin="0,10,0,0"/>
+                </StackPanel>
+
+                <!-- 로그인 폼 -->
+                <StackPanel x:Name="LoginFormPanel" Grid.Row="1" VerticalAlignment="Center" Width="300" Opacity="0">
+                    <!-- 아이디 입력 필드 -->
+                    <Border Style="{StaticResource InputField}" Height="50">
+                        <Grid>
+                            <TextBox x:Name="IdTextBox" FontSize="14" BorderThickness="0" Background="Transparent"
+                                    KeyDown="InputBox_KeyDown" VerticalContentAlignment="Center" Padding="5,0"/>
+                            <TextBlock x:Name="IdHint" Text="아이디" FontSize="14" Foreground="#AAAAAA"
+                                      Margin="5,0,0,0" IsHitTestVisible="False"
+                                      VerticalAlignment="Center" Visibility="Visible"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- 비밀번호 입력 필드 -->
+                    <Border Style="{StaticResource InputField}" Height="50">
+                        <Grid>
+                            <PasswordBox x:Name="PasswordBox" FontSize="14" BorderThickness="0" Background="Transparent"
+                                        KeyDown="InputBox_KeyDown" VerticalContentAlignment="Center" Padding="5,0"/>
+                            <TextBlock x:Name="PasswordHint" Text="비밀번호" FontSize="14" Foreground="#AAAAAA"
+                                      Margin="5,0,0,0" IsHitTestVisible="False"
+                                      VerticalAlignment="Center" Visibility="Visible"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- 로그인 버튼 -->
+                    <Button x:Name="LoginButton" Content="로그인" FontSize="16" Margin="0,20,0,15" Height="50"
+                           Style="{StaticResource PrimaryButton}" Click="LoginButton_Click"/>
+
+                    <!-- 회원가입 버튼 -->
+                    <Button Content="회원가입" FontSize="14" Margin="0,5,0,0" Height="50"
+                           Style="{StaticResource SecondaryButton}" Click="SignupButton_Click"/>
+                </StackPanel>
+
+                <!-- 로딩 인디케이터 -->
+                <Border x:Name="LoadingIndicator" Grid.RowSpan="2" Background="#80000000" Visibility="Collapsed"
+                      CornerRadius="15" Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="로그인 중..." Foreground="White" FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                        <ProgressBar IsIndeterminate="True" Width="150" Height="3" Foreground="White" Background="Transparent"/>
+                    </StackPanel>
+                </Border>
             </Grid>
-
-            <!-- 로그인 버튼 -->
-            <Button Content="로그인" FontSize="16" Padding="10" Margin="0,20,0,10"
-                    Background="#00CED1" Foreground="Black" Click="LoginButton_Click"/>
-
-            <!-- 회원가입 버튼 -->
-            <Button Content="회원가입" FontSize="12" Padding="10"
-                    Background="Transparent" Foreground="#AFEEEE" BorderBrush="#AFEEEE"
-                    Click="SignupButton_Click"/>
-        </StackPanel>
-    </Grid>
+        </Grid>
+    </Border>
 </Window>
