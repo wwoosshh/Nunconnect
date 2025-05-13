@@ -22,7 +22,7 @@
         <!-- 상단: 앱 이름 / 버전 -->
         <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center">
             <TextBlock Text="Connect" FontSize="30" FontWeight="Bold" Foreground="#00CED1" TextAlignment="Center" Margin="0,10,0,10"/>
-            <TextBlock Text="1.3.0 ver" FontSize="16" Foreground="#AFEEEE" TextAlignment="Center"/>
+            <TextBlock Text="1.4.0 ver" FontSize="16" Foreground="#AFEEEE" TextAlignment="Center"/>
         </StackPanel>
 
         <!-- 하단: 로그인 박스 -->

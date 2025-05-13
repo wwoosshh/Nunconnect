@@ -25,7 +25,7 @@ namespace chatapp
             // ✅ 실행 시 버전 검사
             CheckAppVersion();
         }
-        private const string CurrentVersion = "1.3.0"; // ✅ 클라이언트 현재 버전 명시
+        private const string CurrentVersion = "1.4.0"; // ✅ 클라이언트 현재 버전 명시
         private async void CheckAppVersion()
         {
             try

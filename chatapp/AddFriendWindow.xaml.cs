@@ -31,10 +31,11 @@ namespace chatapp
 
             try
             {
-                using HttpClient client = new();
+                // 수정: 정적 HttpClient 객체 사용
+                HttpClient client = ApiClient.GetClient();
 
                 // ✅ 1. 서버에 유저 존재 여부 확인
-                var userCheckResponse = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/User/getUserByIndex?index={targetIndex}");
+                var userCheckResponse = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/User/getUserNameByIndex?index={targetIndex}");
                 if (!userCheckResponse.IsSuccessStatusCode)
                 {
                     MessageBox.Show($"Index {targetIndex}에 해당하는 유저가 존재하지 않습니다.");

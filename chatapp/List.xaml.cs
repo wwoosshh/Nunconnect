@@ -112,7 +112,30 @@ namespace chatapp
                 using HttpClient client = new HttpClient();
                 string baseUrl = AppSettings.GetServerUrl();
 
-                // 🔵 1. 서버에 채팅방 입장 요청 보내기
+                // 먼저 채팅방 목록을 가져와서 해당 방이 private인지 확인
+                var chatListResponse = await client.GetAsync($"{baseUrl}/api/User/getChatList");
+                if (chatListResponse.IsSuccessStatusCode)
+                {
+                    var chatListJson = await chatListResponse.Content.ReadAsStringAsync();
+                    var allRooms = JsonConvert.DeserializeObject<List<RoomInfo>>(chatListJson);
+
+                    // 입력한 이름과 비밀번호로 방을 찾음
+                    var room = allRooms?.FirstOrDefault(r =>
+                        r.RoomName == roomName && r.Password == password);
+
+                    // 1대1 채팅방 확인 (이름 형식으로 판단)
+                    if (room != null && room.RoomName.Contains("님과") && room.RoomName.Contains("님의 대화"))
+                    {
+                        // 내 이름이 채팅방 이름에 포함되어 있는지 확인
+                        if (!room.RoomName.Contains(_currentUser.Name))
+                        {
+                            MessageBox.Show("1대1 채팅방은 참여자만 입장할 수 있습니다.");
+                            return;
+                        }
+                    }
+                }
+
+                // 서버에 채팅방 입장 요청 보내기
                 var requestData = new
                 {
                     RoomName = roomName,
@@ -124,7 +147,6 @@ namespace chatapp
 
                 if (response.IsSuccessStatusCode)
                 {
-                    // ✅ 서버에서 받은 RoomId
                     var json = await response.Content.ReadAsStringAsync();
                     var result = JsonConvert.DeserializeAnonymousType(json, new { RoomId = "" });
 
@@ -299,6 +321,8 @@ namespace chatapp
             public string Password { get; set; } = string.Empty;
 
             public string RoomId { get; set; } = string.Empty;
+
+            public bool IsPrivate { get; set; } = false;
         }
 
         public class DisplayRoom
