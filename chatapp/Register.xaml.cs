@@ -19,13 +19,6 @@ namespace chatapp
         {
             InitializeComponent();
         }
-
-        private string GetServerUrl()
-        {
-            bool isServerPc = true; //서버면 true, 클라이언트면 false
-            return isServerPc ? "http://localhost:5159" : "http://nunconnect.duckdns.org:5159";
-        }
-
         private string HashPassword(string password)
         {
             using SHA256 sha = SHA256.Create();
@@ -59,7 +52,7 @@ namespace chatapp
 
             using HttpClient client = new();
             var content = new StringContent(JsonConvert.SerializeObject(newUser), Encoding.UTF8, "application/json");
-            var response = await client.PostAsync($"{GetServerUrl()}/api/User/register", content);
+            var response = await client.PostAsync($"{AppSettings.GetServerUrl()}/api/User/register", content);
 
             if (response.IsSuccessStatusCode)
             {
@@ -88,7 +81,7 @@ namespace chatapp
                 using HttpClient client = new();
                 var emailData = new { Email = _registeredEmail };
                 var content = new StringContent(JsonConvert.SerializeObject(emailData), Encoding.UTF8, "application/json");
-                var response = await client.PostAsync($"{GetServerUrl()}/api/User/resendVerification", content);
+                var response = await client.PostAsync($"{AppSettings.GetServerUrl()}/api/User/resendVerification", content);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -117,7 +110,7 @@ namespace chatapp
                 using HttpClient client = new();
                 var emailCheck = new { Email = _registeredEmail };
                 var content = new StringContent(JsonConvert.SerializeObject(emailCheck), Encoding.UTF8, "application/json");
-                var response = await client.PostAsync($"{GetServerUrl()}/api/User/checkEmailConfirmed", content);
+                var response = await client.PostAsync($"{AppSettings.GetServerUrl()}/api/User/checkEmailConfirmed", content);
                 var user = await ValidateCredentialsFromServer(id, pw);
 
                 if (response.IsSuccessStatusCode)
@@ -145,7 +138,7 @@ namespace chatapp
             {
                 using HttpClient client = new HttpClient();
                 var requestData = new { Id = id, Password = hashedPw };
-                string apiUrl = GetServerUrl();
+                string apiUrl = AppSettings.GetServerUrl();
 
                 var response = await client.PostAsJsonAsync($"{apiUrl}/api/User/login", requestData);
 

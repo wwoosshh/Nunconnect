@@ -21,12 +21,6 @@ namespace chatapp
             _currentUser = currentUser;
         }
 
-        private string GetServerUrl()
-        {
-            bool isServerPc = true; //서버면 true, 클라이언트면 false
-            return isServerPc ? "http://localhost:5159" : "http://nunconnect.duckdns.org:5159";
-        }
-
         private async void RequestButton_Click(object sender, RoutedEventArgs e)
         {
             if (!int.TryParse(FriendIndexInput.Text.Trim(), out int targetIndex))
@@ -40,7 +34,7 @@ namespace chatapp
                 using HttpClient client = new();
 
                 // ✅ 1. 서버에 유저 존재 여부 확인
-                var userCheckResponse = await client.GetAsync($"{GetServerUrl()}/api/User/getUserByIndex?index={targetIndex}");
+                var userCheckResponse = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/User/getUserByIndex?index={targetIndex}");
                 if (!userCheckResponse.IsSuccessStatusCode)
                 {
                     MessageBox.Show($"Index {targetIndex}에 해당하는 유저가 존재하지 않습니다.");
@@ -48,7 +42,7 @@ namespace chatapp
                 }
 
                 // ✅ 2. 중복 요청 검증 (서버 API 활용)
-                var duplicateCheck = await client.GetAsync($"{GetServerUrl()}/api/Friend/isRequestDuplicate?hostIndex={_currentUser.Index}&targetIndex={targetIndex}");
+                var duplicateCheck = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/Friend/isRequestDuplicate?hostIndex={_currentUser.Index}&targetIndex={targetIndex}");
                 if (await duplicateCheck.Content.ReadAsStringAsync() == "true")
                 {
                     MessageBox.Show("이미 친구 요청을 보낸 상태입니다.");
@@ -56,7 +50,7 @@ namespace chatapp
                 }
 
                 // ✅ 3. 이미 친구인지 확인
-                var friendCheck = await client.GetAsync($"{GetServerUrl()}/api/Friend/isAlreadyFriend?hostIndex={_currentUser.Index}&targetIndex={targetIndex}");
+                var friendCheck = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/Friend/isAlreadyFriend?hostIndex={_currentUser.Index}&targetIndex={targetIndex}");
                 if (await friendCheck.Content.ReadAsStringAsync() == "true")
                 {
                     MessageBox.Show("이미 친구인 상태입니다.");
@@ -64,7 +58,7 @@ namespace chatapp
                 }
 
                 // ✅ 4. 친구 요청 API 호출
-                string url = $"{GetServerUrl()}/api/Friend/add";
+                string url = $"{AppSettings.GetServerUrl()}/api/Friend/add";
                 var request = new FriendRequest
                 {
                     HostIndex = _currentUser.Index,

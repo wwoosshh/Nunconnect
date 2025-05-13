@@ -5,7 +5,6 @@
         WindowStartupLocation="CenterScreen" Background="#1e1e1e">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20">
-
             <!-- 👤 내 프로필 -->
             <Border Background="#2c2c2c" Padding="15" CornerRadius="10" Margin="0,0,0,20">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -18,22 +17,6 @@
                             HorizontalAlignment="Right" Click="AddFriendButton_Click"/>
                 </StackPanel>
             </Border>
-
-            <!-- 📌 친구 추가 모달 -->
-            <Grid x:Name="AddFriendModal" Background="#99000000" Visibility="Collapsed" 
-                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                <Border Width="300" Height="200" Background="#2c2c2c" CornerRadius="10" 
-                        VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20">
-                        <TextBlock Text="친구신청번호 입력" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
-                        <TextBox x:Name="FriendIndexInput" Height="30" FontSize="14" Width="200"/>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
-                            <Button Content="요청" Width="80" Margin="5,0" Click="SendFriendRequest_Click"/>
-                            <Button Content="취소" Width="80" Margin="5,0" Click="CancelFriendRequest_Click"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-            </Grid>
 
             <!-- 📩 친구 요청 대기 목록 -->
             <Expander Header="친구 요청" Foreground="White" Margin="0,20,0,0" IsExpanded="True">

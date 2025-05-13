@@ -16,20 +16,6 @@ namespace chatapp
     {
         private UserData _user;
         private string _userFilePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "users.txt");
-        private string GetServerUrl()
-        {
-            // 서버인지 클라이언트인지 수동으로 설정
-            bool isServerPc = true; // 🔥 서버 본체라면 true, 외부 클라이언트는 false
-
-            if (isServerPc)
-            {
-                return "http://localhost:5159";
-            }
-            else
-            {
-                return "http://nunconnect.duckdns.org:5159";
-            }
-        }
 
         public Profile(UserData user)
         {
@@ -53,7 +39,7 @@ namespace chatapp
 
             try
             {
-                string serverUrl = GetServerUrl();
+                string serverUrl = AppSettings.GetServerUrl();
                 string apiUrl = $"{serverUrl}/api/User/update";
 
                 using HttpClient client = new HttpClient();

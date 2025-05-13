@@ -31,7 +31,7 @@ namespace chatapp
             try
             {
                 using HttpClient client = new HttpClient();
-                string apiUrl = GetServerUrl();
+                string apiUrl = AppSettings.GetServerUrl();
                 var response = await client.GetAsync($"{apiUrl}/api/User/checkVersion");
 
                 if (response.IsSuccessStatusCode)
@@ -80,17 +80,8 @@ namespace chatapp
         }
         private string GetServerUrl()
         {
-            // 서버인지 클라이언트인지 수동으로 설정
-            bool isServerPc = true; // 🔥 서버 본체라면 true, 외부 클라이언트는 false
-
-            if (isServerPc)
-            {
-                return "http://localhost:5159";
-            }
-            else
-            {
-                return "http://nunconnect.duckdns.org:5159";
-            }
+            bool isServerPc = true;
+            return isServerPc ? "http://localhost:5159" : "http://nunconnect.duckdns.org:5159";
         }
 
         private async Task<UserData?> ValidateCredentialsFromServer(string id, string pw)
@@ -101,7 +92,7 @@ namespace chatapp
             {
                 using HttpClient client = new HttpClient();
                 var requestData = new { Id = id, Password = hashedPw };
-                string apiUrl = GetServerUrl();
+                string apiUrl = AppSettings.GetServerUrl();
 
                 var response = await client.PostAsJsonAsync($"{apiUrl}/api/User/login", requestData);
 

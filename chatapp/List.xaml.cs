@@ -24,20 +24,6 @@ namespace chatapp
             _currentUser = user;
             this.Loaded += (s, e) => LoadUserJoinedRooms();
         }
-        private string GetServerUrl1()
-        {
-            // 서버인지 클라이언트인지 수동으로 설정
-            bool isServerPc = true; // 🔥 서버 본체라면 true, 외부 클라이언트는 false
-
-            if (isServerPc)
-            {
-                return "http://localhost:5159";
-            }
-            else
-            {
-                return "http://nunconnect.duckdns.org:5159";
-            }
-        }
         private void CreateRoom_Click(object sender, RoutedEventArgs e)
         {
             CreateRoomPanel.Visibility = Visibility.Visible;
@@ -62,7 +48,7 @@ namespace chatapp
                 return;
             }
 
-            string apiUrl = GetServerUrl1();
+            string apiUrl = AppSettings.GetServerUrl();
 
             var request = new
             {
@@ -124,7 +110,7 @@ namespace chatapp
             try
             {
                 using HttpClient client = new HttpClient();
-                string baseUrl = GetServerUrl1();
+                string baseUrl = AppSettings.GetServerUrl();
 
                 // 🔵 1. 서버에 채팅방 입장 요청 보내기
                 var requestData = new
@@ -165,7 +151,7 @@ namespace chatapp
             try
             {
                 using HttpClient client = new HttpClient();
-                string baseUrl = GetServerUrl1(); // 🔥 고정된 ngrok 주소 사용
+                string baseUrl = AppSettings.GetServerUrl(); // 🔥 고정된 ngrok 주소 사용
 
                 // 🔵 1. 현재 로그인한 유저 정보를 서버에서 가져옴
                 var userResponse = await client.GetAsync($"{baseUrl}/api/User/getUser?userId={_currentUser.Id}");
@@ -232,7 +218,7 @@ namespace chatapp
             try
             {
                 using HttpClient client = new HttpClient();
-                string apiUrl = GetServerUrl1();
+                string apiUrl = AppSettings.GetServerUrl();
 
                 // GET 요청에 쿼리 스트링으로 값 전달
                 string requestUrl = $"{apiUrl}/api/User/verifyRoomPassword?roomId={roomId}&roomName={roomName}&password={password}";
@@ -273,7 +259,7 @@ namespace chatapp
 
             // 삭제 요청
             using HttpClient client = new HttpClient();
-            string apiUrl = GetServerUrl1();
+            string apiUrl = AppSettings.GetServerUrl();
             var deleteResponse = await client.PostAsJsonAsync($"{apiUrl}/api/User/deleteRooms", new[] { roomId });
 
             if (deleteResponse.IsSuccessStatusCode)

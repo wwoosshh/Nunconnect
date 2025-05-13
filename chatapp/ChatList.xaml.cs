@@ -21,20 +21,6 @@ namespace chatapp
             LoadChatFromFile();
             UserNameTextBlock.Text = _currentUser.Name + "님";
         }
-        private string GetServerUrl()
-        {
-            // 서버인지 클라이언트인지 수동으로 설정
-            bool isServerPc = true; // 🔥 서버 본체라면 true, 외부 클라이언트는 false
-
-            if (isServerPc)
-            {
-                return "http://localhost:5159";
-            }
-            else
-            {
-                return "http://nunconnect.duckdns.org:5159";
-            }
-        }
 
         private void SendButton_Click(object sender, RoutedEventArgs e)
         {

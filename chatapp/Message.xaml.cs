@@ -25,12 +25,6 @@ namespace chatapp
         private Dictionary<string, string> _userNames = new();
         private HubConnection _connection;
 
-        private string GetServerUrl()
-        {
-            bool isServerPc = true;
-            return isServerPc ? "http://localhost:5159" : "http://nunconnect.duckdns.org:5159";
-        }
-
         private void LoadUserNames()
         {
             string userFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "users.txt");
@@ -46,7 +40,7 @@ namespace chatapp
             try
             {
                 using HttpClient client = new();
-                var response = await client.GetAsync($"{GetServerUrl()}/api/User/loadMessages?roomId={_roomId}");
+                var response = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/User/loadMessages?roomId={_roomId}");
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -167,7 +161,7 @@ namespace chatapp
         private async void ConnectToSignalR()
         {
             _connection = new HubConnectionBuilder()
-                .WithUrl($"{GetServerUrl()}/chathub")
+                .WithUrl($"{AppSettings.GetServerUrl()}/chathub")
                 .WithAutomaticReconnect()
                 .Build();
 
@@ -266,7 +260,7 @@ namespace chatapp
 
                 form.Add(new StreamContent(fs), "file", Path.GetFileName(dlg.FileName));
 
-                var response = await client.PostAsync($"{GetServerUrl()}/api/File/upload?roomId={_roomId}&senderId={_currentUser.Id}", form);
+                var response = await client.PostAsync($"{AppSettings.GetServerUrl()}/api/File/upload?roomId={_roomId}&senderId={_currentUser.Id}", form);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -290,7 +284,31 @@ namespace chatapp
             }
         }
 
+        private async void SetRoomTitle()
+        {
+            try
+            {
+                using HttpClient client = new();
+                var response = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/User/getChatList");
 
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var rooms = JsonConvert.DeserializeObject<List<ChatRoom>>(json) ?? new();
+                    var room = rooms.FirstOrDefault(r => r.RoomId == _roomId);
+                    RoomTitleText.Text = room != null ? room.Name : $"채팅방: {_roomId}";
+                }
+                else
+                {
+                    RoomTitleText.Text = "채팅방";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"채팅방 정보를 불러오지 못했습니다: {ex.Message}");
+                RoomTitleText.Text = "채팅방";
+            }
+        }
         private void AddImageBubble(string senderId, string imageUrl)
         {
             if (string.IsNullOrWhiteSpace(imageUrl))
@@ -321,8 +339,8 @@ namespace chatapp
 
             try
             {
-                // ✅ 로컬 환경일 때 nunconnect 주소를 localhost로 변환
-                if (Environment.MachineName == "DESKTOP-NV0M9IM") // <-- 여기 'YOUR_PC_NAME'을 자신의 PC 이름으로 변경하세요.
+                // 로컬 환경일 때 nunconnect 주소를 localhost로 변환
+                if (Environment.MachineName == "DESKTOP-NV0M9IM")
                 {
                     if (imageUrl.Contains("nunconnect.duckdns.org:5159"))
                     {
@@ -330,7 +348,7 @@ namespace chatapp
                     }
                 }
 
-                // ✅ 최종적으로 이미지 로드
+                // 이미지 로드
                 if (Uri.IsWellFormedUriString(imageUrl, UriKind.Absolute))
                 {
                     image.Source = new BitmapImage(new Uri(imageUrl));
@@ -347,12 +365,19 @@ namespace chatapp
                 return;
             }
 
-            // ✅ 클릭 시 전체 뷰어로 열기
+            // 클릭 시 전체 뷰어로 열기
             image.MouseLeftButtonUp += (s, e) =>
             {
                 var viewer = new ImageViewerWindow(imageUrl);
                 viewer.ShowDialog();
             };
+
+            // 이미지에 컨텍스트 메뉴 추가 (우클릭 메뉴)
+            var contextMenu = new ContextMenu();
+            var downloadMenuItem = new MenuItem { Header = "이미지 다운로드" };
+            downloadMenuItem.Click += (s, e) => DownloadImage(imageUrl);
+            contextMenu.Items.Add(downloadMenuItem);
+            image.ContextMenu = contextMenu;
 
             container.Children.Add(nameText);
             container.Children.Add(image);
@@ -360,32 +385,46 @@ namespace chatapp
             ChatStack.Children.Add(container);
             ChatScrollViewer.ScrollToEnd();
         }
-
-
-
-        private async void SetRoomTitle()
+        private async void DownloadImage(string imageUrl)
         {
             try
             {
-                using HttpClient client = new();
-                var response = await client.GetAsync($"{GetServerUrl()}/api/User/getChatList");
+                // 이미지 URL에서 파일명 추출
+                string fileName = Path.GetFileName(new Uri(imageUrl).LocalPath);
 
-                if (response.IsSuccessStatusCode)
+                // 저장 대화상자 표시
+                var saveDialog = new Microsoft.Win32.SaveFileDialog
                 {
-                    var json = await response.Content.ReadAsStringAsync();
-                    var rooms = JsonConvert.DeserializeObject<List<ChatRoom>>(json) ?? new();
-                    var room = rooms.FirstOrDefault(r => r.RoomId == _roomId);
-                    RoomTitleText.Text = room != null ? room.Name : $"채팅방: {_roomId}";
-                }
-                else
+                    FileName = fileName,
+                    Filter = "이미지 파일|*.jpg;*.jpeg;*.png;*.bmp",
+                    DefaultExt = Path.GetExtension(fileName)
+                };
+
+                if (saveDialog.ShowDialog() == true)
                 {
-                    RoomTitleText.Text = "채팅방";
+                    // API 호출을 위한 URL 준비
+                    string apiUrl = $"{AppSettings.GetServerUrl()}/api/File/download?fileName={fileName}";
+
+                    using (var client = new HttpClient())
+                    using (var response = await client.GetAsync(apiUrl))
+                    {
+                        if (response.IsSuccessStatusCode)
+                        {
+                            // 파일 저장
+                            byte[] fileBytes = await response.Content.ReadAsByteArrayAsync();
+                            File.WriteAllBytes(saveDialog.FileName, fileBytes);
+                            MessageBox.Show("이미지가 성공적으로 다운로드되었습니다.", "다운로드 완료", MessageBoxButton.OK, MessageBoxImage.Information);
+                        }
+                        else
+                        {
+                            MessageBox.Show($"다운로드 실패: {response.StatusCode}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"채팅방 정보를 불러오지 못했습니다: {ex.Message}");
-                RoomTitleText.Text = "채팅방";
+                MessageBox.Show($"이미지 다운로드 중 오류 발생: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
