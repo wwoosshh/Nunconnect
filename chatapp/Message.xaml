@@ -156,7 +156,7 @@
             </Grid>
 
             <!-- 채팅 영역 -->
-            <Grid Grid.Row="1" Margin="20,0,20,20">
+            <Grid Grid.Row="1" Margin="10,0,10,20">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
@@ -169,16 +169,17 @@
 
                 <!-- 전송 중 표시자 -->
                 <Border x:Name="SendingIndicator" Grid.Row="0" Background="#80000000" 
-                        Visibility="Collapsed" HorizontalAlignment="Center" 
-                        VerticalAlignment="Center" CornerRadius="10" Padding="15,10">
+            Visibility="Collapsed" HorizontalAlignment="Center" 
+            VerticalAlignment="Center" CornerRadius="10" Padding="15,10">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="전송 중" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
                         <TextBlock x:Name="LoadingDots" Text="" Foreground="White" FontSize="14" 
-                                  VerticalAlignment="Center" Margin="2,0,0,0"/>
+                     VerticalAlignment="Center" Margin="2,0,0,0"/>
                     </StackPanel>
                 </Border>
+            
 
-                <!-- 입력창 -->
+            <!-- 입력창 -->
                 <Grid Grid.Row="1" Margin="0,0,0,0">
                     <Border Background="#F5F7F9" CornerRadius="20" Padding="5">
                         <Grid>
@@ -188,9 +189,9 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <Button Grid.Column="0" Content="📷" Width="40" Height="40" 
+                            <Button Grid.Column="0" Content="📎" Width="40" Height="40" 
                                    Background="Transparent" Foreground="{StaticResource PrimaryColor}" 
-                                   FontSize="20" Click="SendImageButton_Click" 
+                                   FontSize="20" Click="SendFileButton_Click" 
                                    BorderThickness="0" Cursor="Hand"/>
 
                             <TextBox Grid.Column="1" x:Name="MessageInput" Background="Transparent" 

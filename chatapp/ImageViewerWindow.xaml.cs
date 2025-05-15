@@ -59,7 +59,25 @@ namespace chatapp
                 MessageBox.Show($"이미지 로드 중 오류 발생: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+        private void ImageViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // Ctrl 키가 눌려있는지 확인
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                e.Handled = true;
 
+                if (e.Delta > 0)
+                {
+                    // 확대
+                    ZoomInButton_Click(sender, e);
+                }
+                else
+                {
+                    // 축소
+                    ZoomOutButton_Click(sender, e);
+                }
+            }
+        }
         private async void DownloadButton_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -153,7 +171,7 @@ namespace chatapp
         {
             if (ImageViewer.Source is BitmapImage image)
             {
-                ImageInfoText.Text = $"{(int)(image.Width * ImageScale.ScaleX)} x {(int)(image.Height * ImageScale.ScaleY)} ({Math.Round(ImageScale.ScaleX * 100)}%)";
+                ImageInfoText.Text = $"{(int)(image.Width * ImageScale.ScaleX)} x {(int)(image.Height * ImageScale.ScaleY)} ({Math.Round(ImageScale.ScaleX * 50)}%)";
             }
         }
 

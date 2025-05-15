@@ -12,8 +12,15 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using static chatapp.MainWindow;
+using System.Threading.Tasks;
+using System.Linq;
+using System.Collections.Generic;
+
+// 네임스페이스 충돌 해결을 위한 별칭 설정
+using IOPath = System.IO.Path;
 
 namespace chatapp
 {
@@ -22,6 +29,7 @@ namespace chatapp
         private UserData _currentUser;
         private string _roomId;
         private Dictionary<string, string> _userNames = new Dictionary<string, string>();
+        private Dictionary<string, string> _userProfiles = new Dictionary<string, string>();
         private HubConnection _connection;
         private List<ChatMessage> _chatHistory = new List<ChatMessage>();
         private DispatcherTimer _loadingDotsTimer;
@@ -92,25 +100,77 @@ namespace chatapp
             };
         }
 
-        private void LoadUserNames()
+        private async void LoadUserNames()
         {
-            string userFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "users.txt");
-            if (!File.Exists(userFilePath)) return;
+            try
+            {
+                // API 클라이언트를 사용해 모든 사용자 정보 가져오기
+                using (HttpClient client = new HttpClient())
+                {
+                    string apiUrl = $"{AppSettings.GetServerUrl()}/api/User/getAllUsers";
 
-            var json = File.ReadAllText(userFilePath);
-            var users = JsonConvert.DeserializeObject<List<UserData>>(json) ?? new List<UserData>();
-            _userNames = users.ToDictionary(u => u.Id, u => u.Name);
+                    HttpResponseMessage response = await client.GetAsync(apiUrl);
 
-            // 온라인 사용자 수 설정 (실제로는 서버에서 가져와야함)
-            _onlineCount = users.Count(u => u.JoinedRoomIds.Contains(_roomId));
-            UpdateRoomInfo();
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string jsonResponse = await response.Content.ReadAsStringAsync();
+                        var users = JsonConvert.DeserializeObject<List<UserData>>(jsonResponse) ?? new List<UserData>();
+
+                        // 사용자 ID와 이름의 딕셔너리 생성
+                        _userNames = users.ToDictionary(u => u.Id, u => u.Name);
+
+                        // 현재 채팅방에 참여 중인 사용자 수 계산
+                        _onlineCount = users.Count(u => u.JoinedRoomIds.Contains(_roomId));
+
+                        // 룸 정보 업데이트
+                        UpdateRoomInfo();
+                    }
+                    else
+                    {
+                        MessageBox.Show($"사용자 정보를 불러오는데 실패했습니다: {response.StatusCode}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"사용자 정보를 불러오는 중 오류가 발생했습니다: {ex.Message}");
+            }
         }
 
         private void UpdateRoomInfo()
         {
             RoomInfoText.Text = $"온라인 {_onlineCount}명";
         }
-
+        // URL이 이미지인지 확인하는 도우미 메소드
+        private bool IsImageUrl(string url)
+        {
+            string extension = System.IO.Path.GetExtension(url).ToLower();
+            return extension == ".jpg" || extension == ".jpeg" || extension == ".png" ||
+                   extension == ".bmp" || extension == ".gif";
+        }
+        // URL이 동영상인지 확인하는 도우미 메소드
+        private bool IsVideoUrl(string url)
+        {
+            string extension = System.IO.Path.GetExtension(url).ToLower();
+            return extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
+                   extension == ".mkv" || extension == ".wmv";
+        }
+        private void ProcessMediaMessage(string senderId, string mediaUrl, DateTime timestamp)
+        {
+            if (IsImageUrl(mediaUrl))
+            {
+                AddImageBubble(senderId, mediaUrl, timestamp);
+            }
+            else if (IsVideoUrl(mediaUrl))
+            {
+                AddVideoBubble(senderId, mediaUrl, timestamp);
+            }
+            else
+            {
+                // 일반 URL 또는 다른 형식의 파일인 경우
+                AddChatBubble(senderId, mediaUrl, timestamp);
+            }
+        }
         private async void LoadChatFromServer()
         {
             try
@@ -166,7 +226,7 @@ namespace chatapp
 
                         if (Uri.IsWellFormedUriString(chat.Message, UriKind.Absolute))
                         {
-                            AddImageBubble(chat.Sender, chat.Message, chat.Timestamp);
+                            ProcessMediaMessage(chat.Sender, chat.Message, chat.Timestamp);
                         }
                         else
                         {
@@ -196,7 +256,171 @@ namespace chatapp
                 _isScrollEventEnabled = true;
             }
         }
+        private void AddVideoBubble(string senderId, string videoUrl, DateTime timestamp)
+        {
+            UIElement container = CreateVideoBubble(senderId, videoUrl, timestamp);
+            if (container != null)
+            {
+                ChatStack.Children.Add(container);
+                ChatScrollViewer.ScrollToEnd();
+            }
+        }
 
+        private UIElement CreateVideoBubble(string senderId, string videoUrl, DateTime timestamp)
+        {
+            if (string.IsNullOrWhiteSpace(videoUrl))
+                return null;
+
+            string senderName = _userNames.ContainsKey(senderId) ? _userNames[senderId] : senderId;
+            bool isCurrentUser = senderId == _currentUser.Id;
+
+            // 메시지 컨테이너
+            Grid container = new Grid
+            {
+                Margin = new Thickness(isCurrentUser ? 5 : 0, 4, isCurrentUser ? 0 : 5, 4),
+                HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
+            };
+
+            StackPanel bubbleStack = new StackPanel();
+
+            // 이름 표시 (현재 사용자 메시지가 아닌 경우만)
+            if (!isCurrentUser)
+            {
+                TextBlock nameBlock = new TextBlock
+                {
+                    Text = senderName,
+                    FontWeight = FontWeights.SemiBold,
+                    FontSize = 12,
+                    Margin = new Thickness(10, 0, 0, 3),
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333333"))
+                };
+                bubbleStack.Children.Add(nameBlock);
+            }
+
+            // 비디오 버블
+            Border bubble = new Border
+            {
+                Background = isCurrentUser
+                    ? (Brush)new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4A86E8"))
+                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E9E9EB")),
+                CornerRadius = isCurrentUser
+                    ? new CornerRadius(18, 5, 18, 18)
+                    : new CornerRadius(5, 18, 18, 18),
+                Padding = new Thickness(4),
+                Margin = new Thickness(isCurrentUser ? 0 : 10, 0, isCurrentUser ? 10 : 0, 0),
+                HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+                Cursor = Cursors.Hand
+            };
+
+            // 그림자 효과
+            bubble.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                BlurRadius = 4,
+                ShadowDepth = 1,
+                Opacity = 0.1,
+                Direction = 270
+            };
+
+            // 비디오 컨테이너 그리드 (썸네일 + 플레이 버튼)
+            Grid videoGrid = new Grid
+            {
+                Width = 200,
+                Height = 150
+            };
+
+            // 썸네일 배경 (회색)
+            Rectangle thumbnailBg = new Rectangle
+            {
+                Fill = new SolidColorBrush(Colors.Black),
+                Opacity = 0.1
+            };
+            videoGrid.Children.Add(thumbnailBg);
+
+            // 비디오 타입 아이콘 표시
+            TextBlock videoIcon = new TextBlock
+            {
+                Text = "🎬",
+                FontSize = 24,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            videoGrid.Children.Add(videoIcon);
+
+            // 파일명 표시
+            TextBlock fileNameBlock = new TextBlock
+            {
+                Text = System.IO.Path.GetFileName(videoUrl),
+                FontSize = 12,
+                Foreground = isCurrentUser ? Brushes.White : Brushes.Black,
+                TextWrapping = TextWrapping.Wrap,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(5, 0, 5, 5)
+            };
+            videoGrid.Children.Add(fileNameBlock);
+
+            // 재생 버튼
+            Border playButton = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(190, 0, 0, 0)),
+                Width = 50,
+                Height = 50,
+                CornerRadius = new CornerRadius(25),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            TextBlock playIcon = new TextBlock
+            {
+                Text = "▶",
+                FontSize = 18,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            playButton.Child = playIcon;
+            videoGrid.Children.Add(playButton);
+
+            bubble.Child = videoGrid;
+
+            // 클릭 시 전체 뷰어로 열기
+            videoGrid.MouseLeftButtonUp += (s, e) =>
+            {
+                var viewer = new MediaViewerWindow(videoUrl);
+                viewer.ShowDialog();
+            };
+
+            // 시간 표시 추가
+            TextBlock timeBlock = new TextBlock
+            {
+                Text = timestamp.ToString("HH:mm"),
+                FontSize = 10,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#999999")),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(isCurrentUser ? 0 : 5, 5, isCurrentUser ? 5 : 0, 0),
+                HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
+            };
+
+            // 버블 및 시간 추가
+            bubbleStack.Children.Add(bubble);
+            bubbleStack.Children.Add(timeBlock);
+            container.Children.Add(bubbleStack);
+
+            // 애니메이션 준비 및 시작
+            container.Opacity = 0;
+            container.RenderTransform = new TranslateTransform(isCurrentUser ? 20 : -20, 0);
+
+            DoubleAnimation opacityAnimation = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.3));
+            DoubleAnimation translateAnimation = new DoubleAnimation(isCurrentUser ? 20 : -20, 0, TimeSpan.FromSeconds(0.3));
+
+            opacityAnimation.EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut };
+            translateAnimation.EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+            container.BeginAnimation(UIElement.OpacityProperty, opacityAnimation);
+            (container.RenderTransform as TranslateTransform).BeginAnimation(TranslateTransform.XProperty, translateAnimation);
+
+            return container;
+        }
         private async void LoadMoreMessages()
         {
             if (_isLoadingMessages || !_hasMoreMessages || !_oldestMessageTime.HasValue)
@@ -506,9 +730,193 @@ namespace chatapp
             }
         }
 
+        private async void LoadProfileImage(string userId, Ellipse profileImage)
+        {
+            try
+            {
+                // 사용자 정보 로드 (프로필 이미지 URL 가져오기)
+                string profileImageUrl = await GetUserProfileImageUrl(userId);
+
+                if (!string.IsNullOrEmpty(profileImageUrl) && Uri.IsWellFormedUriString(profileImageUrl, UriKind.Absolute))
+                {
+                    // UI 스레드에서 이미지 설정
+                    this.Dispatcher.Invoke(() =>
+                    {
+                        ImageBrush brush = new ImageBrush();
+                        BitmapImage bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.UriSource = new Uri(profileImageUrl);
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.EndInit();
+                        brush.ImageSource = bitmap;
+                        profileImage.Fill = brush;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"프로필 이미지 로드 실패: {ex.Message}");
+            }
+        }
+
+        // 사용자의 프로필 이미지 URL을 가져오는 메서드
+        private async Task<string> GetUserProfileImageUrl(string userId)
+        {
+            try
+            {
+                // 먼저 로컬 캐시에서 확인
+                if (_userProfiles.TryGetValue(userId, out string cachedUrl))
+                {
+                    return cachedUrl;
+                }
+
+                // 서버에서 사용자 정보 조회
+                using HttpClient client = new HttpClient();
+                string serverUrl = AppSettings.GetServerUrl();
+                var response = await client.GetAsync($"{serverUrl}/api/User/getUser?userId={userId}");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var user = JsonConvert.DeserializeObject<UserData>(json);
+
+                    if (user != null && !string.IsNullOrEmpty(user.ProfileImage))
+                    {
+                        // 캐시에 저장
+                        _userProfiles[userId] = user.ProfileImage;
+                        return user.ProfileImage;
+                    }
+                }
+
+                return string.Empty; // 기본 이미지 사용
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"사용자 프로필 조회 실패: {ex.Message}");
+                return string.Empty;
+            }
+        }
+
+        // 기본 채팅 메시지 추가 메서드 (timestamp 없는 버전)
+        private void AddChatBubble(string senderId, string message)
+        {
+            // 타임스탬프가 없는 경우 현재 시간으로 추가
+            AddChatBubble(senderId, message, DateTime.Now);
+        }
+
+        // 타임스탬프가 있는 채팅 메시지 추가 메서드
         private void AddChatBubble(string senderId, string message, DateTime timestamp)
         {
-            UIElement container = CreateChatBubble(senderId, message, timestamp);
+            string senderName = _userNames.ContainsKey(senderId) ? _userNames[senderId] : senderId;
+            bool isCurrentUser = senderId == _currentUser.Id;
+
+            var container = new StackPanel
+            {
+                Margin = new Thickness(isCurrentUser ? 5 : 0, 5, isCurrentUser ? 0 : 5, 5),
+                HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
+            };
+
+            // 메시지와 이름을 담을 스택패널
+            var messageStack = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                Margin = new Thickness(isCurrentUser ? 0 : 36, 0, isCurrentUser ? 36 : 0, 0) // 프로필 이미지 공간 확보
+            };
+
+            // 사용자 이름
+            var nameText = new TextBlock
+            {
+                Text = senderName,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.Black, // 글씨 색상을 검은색으로 변경
+                FontSize = 12,
+                Margin = new Thickness(5, 0, 5, 2),
+                HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
+            };
+
+            // 메시지 버블
+            var bubble = new Border
+            {
+                Background = isCurrentUser
+                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00CED1"))
+                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#008B8B")),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(10),
+                MaxWidth = 300,
+                Child = new TextBlock
+                {
+                    Text = message,
+                    FontSize = 14,
+                    Foreground = Brushes.Black,
+                    TextWrapping = TextWrapping.Wrap
+                }
+            };
+
+            // 시간 표시
+            var timeText = new TextBlock
+            {
+                Text = timestamp.ToString("HH:mm"),
+                FontSize = 10,
+                Foreground = Brushes.Gray,
+                Margin = new Thickness(5, 0, 5, 0),
+                HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
+            };
+
+            // 이름과 메시지 추가
+            messageStack.Children.Add(nameText);
+            messageStack.Children.Add(bubble);
+            messageStack.Children.Add(timeText);
+
+            // 프로필 이미지와 메시지를 담을 그리드
+            var grid = new Grid();
+
+            // 컬럼 정의
+            if (!isCurrentUser)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) }); // 프로필 이미지 너비 증가
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 메시지
+            }
+            else
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 메시지
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) }); // 프로필 이미지 너비 증가
+            }
+
+            // 프로필 이미지 (비동기적으로 로드)
+            var profileImage = new Ellipse
+            {
+                Width = 36,
+                Height = 36,
+                Margin = new Thickness(0, 0, 0, 0), // 마진 제거
+                VerticalAlignment = VerticalAlignment.Top,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+
+            // Panel.ZIndex 속성을 직접 설정하는 대신 Grid.SetZIndex 메서드 사용
+            Grid.SetZIndex(profileImage, 2); // 앞으로 가져오기
+
+            // 기본 배경색 설정 (프로필 이미지 로드 전)
+            profileImage.Fill = new SolidColorBrush(Colors.Gray);
+
+            // 이미지 비동기 로드
+            LoadProfileImage(senderId, profileImage);
+
+            // 그리드에 프로필 이미지와 메시지 추가
+            if (!isCurrentUser)
+            {
+                Grid.SetColumn(profileImage, 0);
+                Grid.SetColumn(messageStack, 1);
+            }
+            else
+            {
+                Grid.SetColumn(messageStack, 0);
+                Grid.SetColumn(profileImage, 1);
+            }
+
+            grid.Children.Add(profileImage);
+            grid.Children.Add(messageStack);
+
+            container.Children.Add(grid);
             ChatStack.Children.Add(container);
             ChatScrollViewer.ScrollToEnd();
         }
@@ -521,7 +929,7 @@ namespace chatapp
             // 메시지 컨테이너
             Grid container = new Grid
             {
-                Margin = new Thickness(0, 4, 0, 4),
+                Margin = new Thickness(isCurrentUser ? 5 : 0, 4, isCurrentUser ? 0 : 5, 4),
                 HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
             };
 
@@ -535,8 +943,8 @@ namespace chatapp
                     Text = senderName,
                     FontWeight = FontWeights.SemiBold,
                     FontSize = 12,
-                    Margin = new Thickness(15, 0, 0, 3),
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"))
+                    Margin = new Thickness(10, 0, 0, 3),
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333333")) // 어두운 회색으로 변경
                 };
                 bubbleStack.Children.Add(nameBlock);
             }
@@ -558,7 +966,7 @@ namespace chatapp
                     ? new CornerRadius(18, 5, 18, 18)
                     : new CornerRadius(5, 18, 18, 18),
                 Padding = new Thickness(14, 10, 14, 10),
-                Margin = new Thickness(isCurrentUser ? 0 : 15, 0, isCurrentUser ? 15 : 0, 0),
+                Margin = new Thickness(isCurrentUser ? 0 : 10, 0, isCurrentUser ? 10 : 0, 0),
                 HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
                 MaxWidth = 280
             };
@@ -633,6 +1041,10 @@ namespace chatapp
                     .WithAutomaticReconnect()
                     .Build();
 
+                // 최대 메시지 크기 설정
+                _connection.ServerTimeout = TimeSpan.FromMinutes(2);
+
+                // 기존 메시지 이벤트 핸들러
                 _connection.On<string, string>("ReceiveMessage", (senderId, message) =>
                 {
                     Dispatcher.Invoke(() => LoadChatFromServer());
@@ -641,6 +1053,12 @@ namespace chatapp
                 _connection.On<string, string>("ReceiveImage", (senderId, imageUrl) =>
                 {
                     Dispatcher.Invoke(() => AddImageBubble(senderId, imageUrl, DateTime.Now));
+                });
+
+                // 동영상 수신 이벤트 추가
+                _connection.On<string, string>("ReceiveVideo", (senderId, videoUrl) =>
+                {
+                    Dispatcher.Invoke(() => AddVideoBubble(senderId, videoUrl, DateTime.Now));
                 });
 
                 await _connection.StartAsync();
@@ -829,11 +1247,11 @@ namespace chatapp
             }
         }
 
-        private async void SendImageButton_Click(object sender, RoutedEventArgs e)
+        private async void SendFileButton_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "이미지 파일|*.jpg;*.jpeg;*.png;*.bmp"
+                Filter = "모든 미디어 파일|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.mp4;*.mov;*.avi|이미지 파일|*.jpg;*.jpeg;*.png;*.bmp;*.gif|동영상 파일|*.mp4;*.mov;*.avi"
             };
 
             if (dlg.ShowDialog() == true)
@@ -847,9 +1265,28 @@ namespace chatapp
                     using var form = new MultipartFormDataContent();
                     using var fs = File.OpenRead(dlg.FileName);
 
-                    form.Add(new StreamContent(fs), "file", Path.GetFileName(dlg.FileName));
+                    form.Add(new StreamContent(fs), "file", IOPath.GetFileName(dlg.FileName));
 
-                    var response = await client.PostAsync($"{AppSettings.GetServerUrl()}/api/File/upload?roomId={_roomId}&senderId={_currentUser.Id}", form);
+                    // 파일 확장자 확인
+                    string extension = IOPath.GetExtension(dlg.FileName).ToLower();
+                    bool isVideo = extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
+                                   extension == ".mkv" || extension == ".wmv";
+
+                    HttpResponseMessage response;
+
+                    // 파일 타입에 따라 다른 API 호출
+                    if (isVideo)
+                    {
+                        // 동영상 파일인 경우
+                        var videoApiUrl = $"{AppSettings.GetServerUrl()}/api/File/videoupload?roomId={_roomId}&senderId={_currentUser.Id}";
+                        response = await client.PostAsync(videoApiUrl, form);
+                    }
+                    else
+                    {
+                        // 이미지 파일인 경우
+                        var imageApiUrl = $"{AppSettings.GetServerUrl()}/api/File/upload?roomId={_roomId}&senderId={_currentUser.Id}";
+                        response = await client.PostAsync(imageApiUrl, form);
+                    }
 
                     // 전송 중 표시자 비활성화
                     ShowSendingIndicator(false);
@@ -858,30 +1295,31 @@ namespace chatapp
                     {
                         var json = await response.Content.ReadAsStringAsync();
                         dynamic result = JsonConvert.DeserializeObject(json);
-                        string imageUrl = result.Url;
+                        string fileUrl = result.Url;
 
-                        // SignalR로 이미지 알림을 명시적으로 전송
-                        if (_connection is { State: HubConnectionState.Connected })
+                        // SignalR로 파일 알림은 서버에서 처리하므로 여기서는 생략
+                        // 본인 채팅창에 즉시 표시 (필요시)
+                        if (isVideo)
                         {
-                            await _connection.InvokeAsync("SendImage", _roomId, _currentUser.Id, imageUrl);
+                            AddVideoBubble(_currentUser.Id, fileUrl, DateTime.Now);
                         }
-
-                        // 본인 채팅창에도 즉시 표시
-                        AddImageBubble(_currentUser.Id, imageUrl, DateTime.Now);
+                        else // 이미지
+                        {
+                            AddImageBubble(_currentUser.Id, fileUrl, DateTime.Now);
+                        }
                     }
                     else
                     {
-                        ShowErrorMessage("이미지 업로드 실패");
+                        ShowErrorMessage("파일 업로드 실패: " + await response.Content.ReadAsStringAsync());
                     }
                 }
                 catch (Exception ex)
                 {
                     ShowSendingIndicator(false);
-                    ShowErrorMessage($"이미지 전송 오류: {ex.Message}");
+                    ShowErrorMessage($"파일 전송 오류: {ex.Message}");
                 }
             }
         }
-
         private void AddImageBubble(string senderId, string imageUrl, DateTime timestamp)
         {
             UIElement container = CreateImageBubble(senderId, imageUrl, timestamp);
@@ -903,7 +1341,7 @@ namespace chatapp
             // 메시지 컨테이너
             Grid container = new Grid
             {
-                Margin = new Thickness(0, 4, 0, 4),
+                Margin = new Thickness(isCurrentUser ? 5 : 0, 4, isCurrentUser ? 0 : 5, 4),
                 HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
             };
 
@@ -917,8 +1355,8 @@ namespace chatapp
                     Text = senderName,
                     FontWeight = FontWeights.SemiBold,
                     FontSize = 12,
-                    Margin = new Thickness(15, 0, 0, 3),
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#555555"))
+                    Margin = new Thickness(10, 0, 0, 3),
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333333")) // 어두운 회색으로 변경
                 };
                 bubbleStack.Children.Add(nameBlock);
             }
@@ -927,13 +1365,13 @@ namespace chatapp
             Border bubble = new Border
             {
                 Background = isCurrentUser
-                    ? (Brush)Application.Current.Resources["PrimaryColor"]
+                    ? (Brush)new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4A86E8"))
                     : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E9E9EB")),
                 CornerRadius = isCurrentUser
                     ? new CornerRadius(18, 5, 18, 18)
                     : new CornerRadius(5, 18, 18, 18),
                 Padding = new Thickness(4),
-                Margin = new Thickness(isCurrentUser ? 0 : 15, 0, isCurrentUser ? 15 : 0, 0),
+                Margin = new Thickness(isCurrentUser ? 0 : 10, 0, isCurrentUser ? 10 : 0, 0),
                 HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
                 Cursor = Cursors.Hand
             };
@@ -1032,14 +1470,14 @@ namespace chatapp
             try
             {
                 // 이미지 URL에서 파일명 추출
-                string fileName = Path.GetFileName(new Uri(imageUrl).LocalPath);
+                string fileName = IOPath.GetFileName(new Uri(imageUrl).LocalPath);
 
                 // 저장 대화상자 표시
                 var saveDialog = new Microsoft.Win32.SaveFileDialog
                 {
                     FileName = fileName,
                     Filter = "이미지 파일|*.jpg;*.jpeg;*.png;*.bmp",
-                    DefaultExt = Path.GetExtension(fileName)
+                    DefaultExt = IOPath.GetExtension(fileName)
                 };
 
                 if (saveDialog.ShowDialog() == true)
