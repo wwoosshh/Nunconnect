@@ -538,7 +538,8 @@ namespace chatapp
                 RoomName = roomName,
                 Password = password,
                 UserId = _currentUser.Id,
-                IsPrivate = true,
+                IsPrivate = true,  // 비밀번호 보호 여부
+                IsOneToOne = true, // 1:1 채팅방 여부 추가
                 TargetUserIndex = friendIndex
             };
 

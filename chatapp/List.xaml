@@ -218,38 +218,7 @@
                 <!-- 채팅방 리스트 스크롤뷰 -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,0,0">
                     <StackPanel x:Name="RoomListPanel" Margin="0,0,0,0">
-                        <ItemsControl x:Name="RoomListControl">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Margin="0,8" Background="White" CornerRadius="15" Padding="15,10">
-                                        <Border.Effect>
-                                            <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.1" Color="Black"/>
-                                        </Border.Effect>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <Border Grid.Column="0" Width="40" Height="40" Background="{StaticResource SecondaryColor}" 
-                                                   CornerRadius="20" Margin="0,0,15,0">
-                                                <TextBlock Text="💬" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding RoomName}" FontSize="16" FontWeight="SemiBold" 
-                                                         TextTrimming="CharacterEllipsis"/>
-                                            </StackPanel>
-
-                                            <Button Grid.Column="2" Content="입장" Width="70" Height="35" 
-                                                  Style="{StaticResource PrimaryButton}" Click="EnterRoom_Click"
-                                                  DataContext="{Binding}"/>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <!-- 여기에 동적으로 카테고리와 채팅방 목록이 추가됩니다 -->
                     </StackPanel>
                 </ScrollViewer>
 
@@ -441,5 +410,33 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <!-- 모달 배경 오버레이 -->
+        <Rectangle x:Name="ModalOverlay" Fill="Black" Opacity="0.5" 
+                  Visibility="Collapsed" Panel.ZIndex="2"/>
+
+        <!-- 채팅방 비밀번호 확인 패널 -->
+        <Border x:Name="PasswordCheckPanel" Style="{StaticResource RoundPanel}" 
+              Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+              Width="350" Opacity="0" Margin="0,0,0,0" Panel.ZIndex="3">
+            <StackPanel>
+                <TextBlock Text="비밀번호 확인" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+
+                <TextBlock x:Name="PasswordRoomNameText" Text="[채팅방 이름]" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+
+                <TextBlock Text="비밀번호" FontWeight="SemiBold" Margin="0,5"/>
+                <Border Background="#F5F7F9" CornerRadius="10" Padding="10,5" Margin="0,0,0,20">
+                    <PasswordBox x:Name="PasswordCheckInput" Background="Transparent" BorderThickness="0" 
+                                FontSize="14" Padding="5,8" KeyDown="PasswordCheckInput_KeyDown"/>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button Content="취소" Width="100" Height="40" Margin="5,0" Style="{StaticResource PrimaryButton}"
+                           Background="#CCCCCC" Click="CancelPasswordCheck_Click"/>
+                    <Button Content="확인" Width="100" Height="40" Margin="5,0" Style="{StaticResource PrimaryButton}"
+                           Background="#00CED1" Click="ConfirmPasswordCheck_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

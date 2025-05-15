@@ -1,0 +1,51 @@
+﻿<Window x:Class="chatapp.NotificationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="알림" Height="80" Width="300"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" Topmost="True"
+        ShowInTaskbar="False" ResizeMode="NoResize">
+
+    <Window.Resources>
+        <Storyboard x:Key="FadeInStoryboard">
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                            From="0" To="1" Duration="0:0:0.3"/>
+        </Storyboard>
+        <Storyboard x:Key="FadeOutStoryboard">
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                            From="1" To="0" Duration="0:0:0.3"/>
+        </Storyboard>
+    </Window.Resources>
+
+    <Border CornerRadius="10" Background="White" BorderThickness="0" Cursor="Hand"
+            MouseLeftButtonDown="Border_MouseLeftButtonDown" MouseEnter="Border_MouseEnter" MouseLeave="Border_MouseLeave">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="10" ShadowDepth="1" Opacity="0.3" Color="Black"/>
+        </Border.Effect>
+
+        <Grid Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 아이콘 -->
+            <Border Grid.Column="0" Width="40" Height="40" Background="#E8F0FE" CornerRadius="20" Margin="0,0,10,0">
+                <TextBlock Text="💬" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+
+            <!-- 내용 -->
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock x:Name="RoomNameText" Text="채팅방 이름" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="MessageText" Text="메시지 내용" TextTrimming="CharacterEllipsis" Opacity="0.8" 
+                           TextWrapping="NoWrap" MaxWidth="200"/>
+            </StackPanel>
+
+            <!-- 닫기 버튼 -->
+            <Button Grid.Column="2" Content="✕" Width="20" Height="20" Background="Transparent" 
+                   BorderThickness="0" Foreground="#888888" FontWeight="Bold" VerticalAlignment="Top"
+                   HorizontalAlignment="Right" Click="CloseButton_Click"/>
+        </Grid>
+    </Border>
+</Window>

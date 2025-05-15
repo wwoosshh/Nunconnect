@@ -18,6 +18,7 @@ namespace chatapp
     public partial class List : Window
     {
         private UserData _currentUser;
+        private DisplayRoom _currentSelectedRoom;
 
         public List(UserData user)
         {
@@ -177,7 +178,7 @@ namespace chatapp
                 using HttpClient client = new HttpClient();
                 string baseUrl = AppSettings.GetServerUrl();
 
-                // 먼저 채팅방 목록을 가져와서 해당 방이 private인지 확인
+                // 먼저 채팅방 목록을 가져와서 해당 방의 정보 확인
                 var chatListResponse = await client.GetAsync($"{baseUrl}/api/User/getChatList");
                 if (chatListResponse.IsSuccessStatusCode)
                 {
@@ -188,15 +189,21 @@ namespace chatapp
                     var room = allRooms?.FirstOrDefault(r =>
                         r.RoomName == roomName && r.Password == password);
 
-                    // 1대1 채팅방 확인 (이름 형식으로 판단)
-                    if (room != null && room.RoomName.Contains("님과") && room.RoomName.Contains("님의 대화"))
+                    // 1:1 채팅방 확인
+                    if (room != null && room.IsOneToOne)
                     {
                         // 내 이름이 채팅방 이름에 포함되어 있는지 확인
                         if (!room.RoomName.Contains(_currentUser.Name))
                         {
-                            MessageBox.Show("1대1 채팅방은 참여자만 입장할 수 있습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+                            MessageBox.Show("1:1 채팅방은 참여자만 입장할 수 있습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
                             return;
                         }
+                    }
+
+                    // 비밀번호 보호 방식인지 확인
+                    if (room != null && room.IsPrivate)
+                    {
+                        // 이미 비밀번호를 입력받았으므로 추가 검증 없이 진행
                     }
                 }
 
@@ -276,17 +283,30 @@ namespace chatapp
                     return;
                 }
 
-                // 사용자가 가입한 채팅방만 필터링
-                var joinedRooms = allRooms
-                    .Where(r => currentUser.JoinedRoomIds.Contains(r.RoomId))
+                // 1. 사용자가 참여한 1:1 채팅방
+                var oneToOneRooms = allRooms
+                    .Where(r => r.IsOneToOne && currentUser.JoinedRoomIds.Contains(r.RoomId))
                     .Select(r => new DisplayRoom
                     {
                         RoomName = r.RoomName,
-                        RoomId = r.RoomId
+                        RoomId = r.RoomId,
+                        IsPrivate = r.IsPrivate,
+                        IsOneToOne = true
                     }).ToList();
 
-                // 채팅방 목록 표시
-                RoomListControl.ItemsSource = joinedRooms;
+                // 2. 모든 공개 채팅방 (사용자 참여 여부 관계없이)
+                var publicRooms = allRooms
+                    .Where(r => !r.IsOneToOne)
+                    .Select(r => new DisplayRoom
+                    {
+                        RoomName = r.RoomName,
+                        RoomId = r.RoomId,
+                        IsPrivate = r.IsPrivate,
+                        IsOneToOne = false
+                    }).ToList();
+
+                // 두 목록을 UI에 표시 (별도 구현 필요)
+                DisplayRoomsByCategory(oneToOneRooms, publicRooms);
 
                 // 로딩 텍스트 숨김
                 LoadingText.Visibility = Visibility.Collapsed;
@@ -296,6 +316,142 @@ namespace chatapp
                 LoadingText.Visibility = Visibility.Collapsed;
                 MessageBox.Show("서버 오류: " + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        // 카테고리별로 채팅방 표시
+        private void DisplayRoomsByCategory(List<DisplayRoom> oneToOneRooms, List<DisplayRoom> publicRooms)
+        {
+            // 기존 채팅방 목록 지우기
+            RoomListPanel.Children.Clear();
+
+            // 1:1 채팅방 섹션 추가
+            AddRoomCategorySection("1:1 채팅방", oneToOneRooms);
+
+            // 공개 채팅방 섹션 추가
+            AddRoomCategorySection("공개 채팅방", publicRooms);
+        }
+
+        // 카테고리 섹션 UI 추가하는 메서드
+        private void AddRoomCategorySection(string title, List<DisplayRoom> rooms)
+        {
+            // 카테고리 제목
+            TextBlock categoryTitle = new TextBlock
+            {
+                Text = title,
+                FontSize = 18,
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 15, 0, 10)
+            };
+            RoomListPanel.Children.Add(categoryTitle);
+
+            // 채팅방 목록이 비어있는 경우
+            if (rooms.Count == 0)
+            {
+                TextBlock emptyMessage = new TextBlock
+                {
+                    Text = "채팅방이 없습니다.",
+                    Foreground = Brushes.Gray,
+                    Margin = new Thickness(10, 5, 0, 15)
+                };
+                RoomListPanel.Children.Add(emptyMessage);
+                return;
+            }
+
+            // 채팅방 항목 추가
+            foreach (var room in rooms)
+            {
+                // 채팅방 항목 UI 생성
+                Border roomItem = CreateRoomItem(room);
+                RoomListPanel.Children.Add(roomItem);
+            }
+        }
+
+        // 채팅방 아이템 UI 생성
+        private Border CreateRoomItem(DisplayRoom room)
+        {
+            Border roomBorder = new Border
+            {
+                Margin = new Thickness(0, 8, 0, 0),
+                Background = Brushes.White,
+                CornerRadius = new CornerRadius(15),
+                Padding = new Thickness(15, 10, 15, 10),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    BlurRadius = 5,
+                    ShadowDepth = 0,
+                    Opacity = 0.1,
+                    Color = Colors.Black
+                }
+            };
+
+            Grid roomGrid = new Grid();
+            roomGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            roomGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            roomGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // 아이콘 (1:1 채팅방과 공개방 다른 아이콘 사용)
+            Border iconBorder = new Border
+            {
+                Width = 40,
+                Height = 40,
+                Background = (SolidColorBrush)Application.Current.Resources["SecondaryColor"],
+                CornerRadius = new CornerRadius(20),
+                Margin = new Thickness(0, 0, 15, 0)
+            };
+
+            TextBlock iconText = new TextBlock
+            {
+                Text = room.IsOneToOne ? "👥" : "💬",
+                FontSize = 20,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            iconBorder.Child = iconText;
+            Grid.SetColumn(iconBorder, 0);
+
+            // 채팅방 이름
+            StackPanel roomInfo = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            TextBlock roomName = new TextBlock
+            {
+                Text = room.RoomName,
+                FontSize = 16,
+                FontWeight = FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            roomInfo.Children.Add(roomName);
+
+            // 비밀번호 보호 여부 표시
+            if (room.IsPrivate)
+            {
+                TextBlock passwordInfo = new TextBlock
+                {
+                    Text = "비밀번호 보호됨",
+                    FontSize = 12,
+                    Foreground = Brushes.Gray
+                };
+                roomInfo.Children.Add(passwordInfo);
+            }
+
+            Grid.SetColumn(roomInfo, 1);
+
+            // 입장 버튼
+            Button enterButton = new Button
+            {
+                Content = "입장",
+                Width = 70,
+                Height = 35,
+                Style = Application.Current.Resources["PrimaryButton"] as Style,
+                DataContext = room
+            };
+            enterButton.Click += EnterRoom_Click;
+            Grid.SetColumn(enterButton, 2);
+
+            roomGrid.Children.Add(iconBorder);
+            roomGrid.Children.Add(roomInfo);
+            roomGrid.Children.Add(enterButton);
+            roomBorder.Child = roomGrid;
+
+            return roomBorder;
         }
 
         private void ManageRooms_Click(object sender, RoutedEventArgs e)
@@ -313,7 +469,98 @@ namespace chatapp
             var storyboard = (Storyboard)FindResource("PanelFadeInStoryboard");
             storyboard.Begin(DeleteRoomPanel);
         }
+        private void EnterRoom_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.DataContext is DisplayRoom room)
+            {
+                // 비밀번호 보호된 방인 경우
+                if (room.IsPrivate)
+                {
+                    _currentSelectedRoom = room;
 
+                    // 비밀번호 확인 패널 표시
+                    PasswordRoomNameText.Text = room.RoomName;
+                    PasswordCheckInput.Password = "";
+
+                    // 모달 오버레이 및 패널 표시
+                    ModalOverlay.Visibility = Visibility.Visible;
+                    PasswordCheckPanel.Visibility = Visibility.Visible;
+                    PasswordCheckPanel.Opacity = 0;
+
+                    // 페이드 인 애니메이션 시작
+                    var storyboard = (Storyboard)FindResource("PanelFadeInStoryboard");
+                    storyboard.Begin(PasswordCheckPanel);
+
+                    // 포커스 설정
+                    PasswordCheckInput.Focus();
+                }
+                else
+                {
+                    // 1:1 채팅방 접근 권한 확인
+                    if (room.IsOneToOne && !room.RoomName.Contains(_currentUser.Name))
+                    {
+                        MessageBox.Show("1:1 채팅방은 참여자만 입장할 수 있습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
+                    // 비밀번호 보호가 아닌 방이면 바로 입장
+                    EnterChatRoom(room.RoomId);
+                }
+            }
+        }
+
+        // 비밀번호 모달 취소 버튼 핸들러
+        private void CancelPasswordCheck_Click(object sender, RoutedEventArgs e)
+        {
+            PasswordCheckPanel.Visibility = Visibility.Collapsed;
+            _currentSelectedRoom = null;
+        }
+
+        // 비밀번호 모달 확인 버튼 핸들러
+        private async void ConfirmPasswordCheck_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentSelectedRoom == null)
+                return;
+
+            string password = PasswordCheckInput.Password.Trim();
+
+            if (string.IsNullOrEmpty(password))
+            {
+                MessageBox.Show("비밀번호를 입력해주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                using HttpClient client = new HttpClient();
+                string baseUrl = AppSettings.GetServerUrl();
+
+                // 비밀번호 검증 요청
+                bool isPasswordCorrect = await VerifyRoomPassword(_currentSelectedRoom.RoomId, _currentSelectedRoom.RoomName, password);
+
+                if (isPasswordCorrect)
+                {
+                    PasswordCheckPanel.Visibility = Visibility.Collapsed;
+                    EnterChatRoom(_currentSelectedRoom.RoomId);
+                }
+                else
+                {
+                    MessageBox.Show("비밀번호가 일치하지 않습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    PasswordCheckInput.Focus();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("서버 오류: " + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        // 채팅방 입장 공통 메서드
+        private void EnterChatRoom(string roomId)
+        {
+            Message msgWindow = new Message(_currentUser, roomId);
+            msgWindow.Show();
+            this.Close();
+        }
         private void CancelDeleteRoom_Click(object sender, RoutedEventArgs e)
         {
             DeleteRoomPanel.Visibility = Visibility.Collapsed;
@@ -392,17 +639,13 @@ namespace chatapp
                 MessageBox.Show("삭제 실패: " + await deleteResponse.Content.ReadAsStringAsync(), "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
-        private void EnterRoom_Click(object sender, RoutedEventArgs e)
+        private void PasswordCheckInput_KeyDown(object sender, KeyEventArgs e)
         {
-            if (sender is Button button && button.DataContext is DisplayRoom room)
+            if (e.Key == Key.Enter)
             {
-                Message msgWindow = new Message(_currentUser, room.RoomId);
-                msgWindow.Show();
-                this.Close();
+                ConfirmPasswordCheck_Click(sender, e);
             }
         }
-
         private string GenerateRoomId()
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -445,13 +688,17 @@ namespace chatapp
 
             public string RoomId { get; set; } = string.Empty;
 
-            public bool IsPrivate { get; set; } = false;
+            public bool IsPrivate { get; set; } = false;  // 비밀번호 보호 여부
+
+            public bool IsOneToOne { get; set; } = false; // 추가: 1:1 채팅방 여부
         }
 
         public class DisplayRoom
         {
             public string RoomName { get; set; }
             public string RoomId { get; set; }
+            public bool IsPrivate { get; set; }  // 비밀번호 보호 여부 표시용
+            public bool IsOneToOne { get; set; } // 1:1 채팅방 여부 표시용
         }
     }
 }

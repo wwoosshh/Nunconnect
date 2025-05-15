@@ -14,7 +14,7 @@ namespace chatapp
     public partial class App : Application
     {
         // 현재 버전
-        public static string CurrentVersion { get; } = "1.5.1";
+        public static string CurrentVersion { get; } = "1.5.2";
 
         // 버전 응답 클래스
         public class VersionResponse
@@ -27,7 +27,7 @@ namespace chatapp
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
-
+            var notificationManager = NotificationManager.Instance;
             // 서버 URL 설정
             AppSettings.IsServerPc = true; // 개발 환경에서는 true, 배포 환경에서는 false 로 설정
 

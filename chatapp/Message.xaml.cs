@@ -26,6 +26,7 @@ namespace chatapp
 {
     public partial class Message : Window
     {
+        private readonly HubConnection _hubConnection;
         private UserData _currentUser;
         private string _roomId;
         private Dictionary<string, string> _userNames = new Dictionary<string, string>();
@@ -34,6 +35,7 @@ namespace chatapp
         private List<ChatMessage> _chatHistory = new List<ChatMessage>();
         private DispatcherTimer _loadingDotsTimer;
         private int _onlineCount = 0;
+        public string CurrentRoomId { get; private set; }
 
         // 페이징 관련 변수
         private bool _isLoadingMessages = false;
@@ -48,6 +50,65 @@ namespace chatapp
             InitializeComponent();
             _currentUser = user ?? throw new ArgumentNullException(nameof(user));
             _roomId = roomId ?? throw new ArgumentNullException(nameof(roomId));
+
+            // SignalR 설정...
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl($"{AppSettings.GetServerUrl()}/chathub")
+                .Build();
+
+            // 메시지 수신 이벤트 처리 
+            _hubConnection.On<string, string>("ReceiveMessage", (senderId, message) =>
+            {
+                // UI 업데이트 코드...
+
+                // 다른 사용자가 보낸 메시지면 알림 표시
+                if (senderId != _currentUser.Id)
+                {
+                    // 채팅방 이름 가져오기
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            string roomName = await GetRoomName(CurrentRoomId);
+                            // 알림 표시
+                            NotificationManager.Instance.ShowNotification(
+                                roomName,
+                                message,
+                                CurrentRoomId,
+                                _currentUser);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"알림 표시 오류: {ex.Message}");
+                        }
+                    });
+                }
+            });
+        }
+        // 채팅방 이름 가져오기 메서드
+        private async Task<string> GetRoomName(string roomId)
+        {
+            try
+            {
+                using HttpClient client = new HttpClient();
+                string baseUrl = AppSettings.GetServerUrl();
+
+                var chatListResponse = await client.GetAsync($"{baseUrl}/api/User/getChatList");
+                if (chatListResponse.IsSuccessStatusCode)
+                {
+                    var chatListJson = await chatListResponse.Content.ReadAsStringAsync();
+                    var allRooms = JsonConvert.DeserializeObject<List<RoomInfo>>(chatListJson);
+
+                    var room = allRooms?.FirstOrDefault(r => r.RoomId == roomId);
+                    return room?.RoomName ?? "채팅방";
+                }
+
+                return "채팅방";
+            }
+            catch
+            {
+                return "채팅방";
+            }
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -1045,9 +1106,25 @@ namespace chatapp
                 _connection.ServerTimeout = TimeSpan.FromMinutes(2);
 
                 // 기존 메시지 이벤트 핸들러
-                _connection.On<string, string>("ReceiveMessage", (senderId, message) =>
+                _connection.On<string, string>("ReceiveMessage", async (senderId, message) =>
                 {
                     Dispatcher.Invoke(() => LoadChatFromServer());
+                    // 다른 사람이 보낸 메시지이고, 현재 창이 활성화되지 않은 경우에만 알림 표시
+                    if (senderId != _currentUser.Id && !IsActive)
+                    {
+                        string roomName = await GetRoomNameAsync(CurrentRoomId);
+                        // UI 스레드에서 알림 창 표시
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            var notification = new NotificationWindow(
+                                roomName, // 채팅방 이름 
+                                message,           // 메시지 내용
+                                CurrentRoomId,     // 방 ID
+                                _currentUser       // 현재 사용자
+                            );
+                            notification.Show();
+                        });
+                    }
                 });
 
                 _connection.On<string, string>("ReceiveImage", (senderId, imageUrl) =>
@@ -1061,6 +1138,20 @@ namespace chatapp
                     Dispatcher.Invoke(() => AddVideoBubble(senderId, videoUrl, DateTime.Now));
                 });
 
+                // 메시지 삭제 이벤트 핸들러를 간소화
+                _connection.On("RefreshMessages", () =>
+                {
+                    Console.WriteLine("메시지 삭제 이벤트 수신됨 - 채팅 새로고침");
+                    Dispatcher.Invoke(() =>
+                    {
+                        // 전체 채팅을 다시 로드 (수정된 메시지 포함)
+                        LoadChatFromServer();
+
+                        // 시스템 메시지 추가 부분 제거
+                        // AddSystemMessage("관리자에 의해 메시지가 삭제되었습니다."); <- 이 줄 제거
+                    });
+                });
+
                 await _connection.StartAsync();
                 await _connection.InvokeAsync("JoinRoom", _roomId, _currentUser.Id);
 
@@ -1072,7 +1163,66 @@ namespace chatapp
                 ShowErrorMessage($"채팅 서버 연결 실패: {ex.Message}");
             }
         }
+        // 채팅방 이름을 가져오는 메서드 추가
+        private async Task<string> GetRoomNameAsync(string roomId)
+        {
+            try
+            {
+                using HttpClient client = new HttpClient();
+                string baseUrl = AppSettings.GetServerUrl();
 
+                var chatListResponse = await client.GetAsync($"{baseUrl}/api/User/getChatList");
+                if (chatListResponse.IsSuccessStatusCode)
+                {
+                    var chatListJson = await chatListResponse.Content.ReadAsStringAsync();
+                    var allRooms = JsonConvert.DeserializeObject<List<RoomInfo>>(chatListJson);
+
+                    // 채팅방 정보 찾기
+                    var room = allRooms?.FirstOrDefault(r => r.RoomId == roomId);
+                    if (room != null)
+                    {
+                        return room.RoomName;
+                    }
+                }
+
+                // 채팅방 정보를 찾지 못했을 경우 기본값 반환
+                return "채팅방";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"채팅방 이름 가져오기 실패: {ex.Message}");
+                return "채팅방"; // 오류 발생 시 기본값 반환
+            }
+        }
+        // 메시지 삭제 처리 메서드
+        private void RemoveMessageFromUI(string roomId, string senderId, DateTime timestamp)
+        {
+            // 1. 채팅 내역에서 해당 메시지 찾기
+            var message = _chatHistory.FirstOrDefault(m =>
+                m.RoomId == roomId &&
+                m.Sender == senderId &&
+                Math.Abs((m.Timestamp - timestamp).TotalSeconds) < 1); // 1초 이내 오차 허용
+
+            if (message != null)
+            {
+                // 내역에서 메시지 제거
+                _chatHistory.Remove(message);
+
+                // 2. UI에서 해당 메시지 찾기 및 제거
+                int indexToRemove = -1;
+
+                for (int i = 0; i < ChatStack.Children.Count; i++)
+                {
+                    var element = ChatStack.Children[i];
+
+                    // 메시지 요소의 Tag 속성에 메시지 정보가 저장되어 있지 않으므로,
+                    // 여기서는 완벽한 처리가 어려움. 채팅을 새로 로드하는 방식으로 구현
+                }
+
+                // 채팅 다시 로드
+                LoadChatFromServer();
+            }
+        }
         private void ToggleSidePanel_Click(object sender, RoutedEventArgs e)
         {
             SidePanel.Visibility = Visibility.Visible;
@@ -1578,6 +1728,13 @@ namespace chatapp
             public string Sender { get; set; } = string.Empty;
             public string Message { get; set; } = string.Empty;
             public DateTime Timestamp { get; set; }
+        }
+        // RoomInfo 클래스 (없다면 추가)
+        public class RoomInfo
+        {
+            [JsonProperty("Name")]
+            public string RoomName { get; set; } = string.Empty;
+            public string RoomId { get; set; } = string.Empty;
         }
     }
 }

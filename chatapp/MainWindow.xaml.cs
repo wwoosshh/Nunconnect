@@ -178,11 +178,21 @@ namespace chatapp
                 // 로그인 성공, 사용자 정보 저장
                 SaveUserInfo(id, HashPassword(pw), user);
 
-                // 채팅 목록 화면으로 이동
-                ChatList chatWindow = new ChatList(user);
-                chatWindow.Show();
-                this.Close();
+                // 로그인 성공 함수 호출
+                await LoginSuccess(user);
             }
+        }
+
+        // 로그인 성공 후 알림 서비스 초기화
+        private async Task LoginSuccess(UserData user)
+        {
+            // 알림 서비스 초기화
+            await NotificationService.Instance.Initialize(user);
+
+            // 채팅 목록 화면으로 이동
+            ChatList chatWindow = new ChatList(user);
+            chatWindow.Show();
+            this.Close();
         }
 
         private async Task<UserData> ValidateCredentialsFromServer(string id, string pw, bool isAutoLogin)
