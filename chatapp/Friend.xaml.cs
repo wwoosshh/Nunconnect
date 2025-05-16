@@ -10,6 +10,7 @@ using System.Windows.Media.Animation;
 using Newtonsoft.Json;
 using System.Net.Http;
 using static chatapp.MainWindow;
+using System.Windows.Media.Effects;
 
 namespace chatapp
 {
@@ -49,19 +50,158 @@ namespace chatapp
         {
             Application.Current.Shutdown();
         }
+        private UIElement FindMainContent()
+        {
+            // 옵션 1: 직접 메인 ScrollViewer 찾기 (큰 영역에 블러 적용하려면)
+            var scrollViewer = this.FindName("FriendListScrollViewer") as ScrollViewer;
+            if (scrollViewer != null)
+                return scrollViewer;
 
+            // 옵션 2: 프로필 + 친구 요청 패널 + 친구 목록 패널 모두 찾기 (세부 영역에 블러 적용하려면)
+            var panels = new List<UIElement>();
+
+            var friendListPanel = this.FindName("FriendListPanel") as UIElement;
+            if (friendListPanel != null)
+                panels.Add(friendListPanel);
+
+            var requestListPanel = this.FindName("RequestListPanel") as UIElement;
+            if (requestListPanel != null)
+                panels.Add(requestListPanel);
+
+            if (panels.Count > 0)
+                return panels[0]; // 첫 번째 찾은 패널 반환
+
+            // 기본값: 전체 Window에 적용 (최후의 수단)
+            return this;
+        }
         private void ToggleSidePanel_Click(object sender, RoutedEventArgs e)
         {
+            // 현재 사이드 패널 상태 확인
+            if (SidePanel.Visibility == Visibility.Visible)
+            {
+                CloseSidePanel_Click(null, null);
+                return;
+            }
+
+            Console.WriteLine("사이드 패널 열기");
+
+            // 요소 초기화
             SidePanel.Visibility = Visibility.Visible;
-            var slideIn = (Storyboard)FindResource("SlideInStoryboard");
-            slideIn.Begin();
+            SidePanel.Margin = new Thickness(-250, 0, 0, 0);
+            BlurOverlay.Visibility = Visibility.Visible;
+            BlurOverlay.Opacity = 0;
+
+            // 부모 그리드 찾기 (메인 콘텐츠)
+            FrameworkElement mainContent = null;
+
+            // 첫 번째 시도: 스크롤뷰어 찾기
+            var scrollViewer = this.FindName("FriendListScrollViewer") as ScrollViewer ??
+                               VisualTreeHelper.GetChild(this, 0) as ScrollViewer;
+
+            if (scrollViewer != null)
+            {
+                mainContent = scrollViewer;
+            }
+            else
+            {
+                // 두 번째 시도: 메인 그리드 찾기
+                var grid = this.Content as Grid;
+                if (grid != null && grid.Children.Count > 0)
+                {
+                    // 첫 번째 그리드의 두 번째 행 (콘텐츠 영역)
+                    var mainGrid = grid.Children[0] as Grid;
+                    if (mainGrid != null && mainGrid.RowDefinitions.Count > 1)
+                    {
+                        for (int i = 0; i < mainGrid.Children.Count; i++)
+                        {
+                            var element = mainGrid.Children[i];
+                            if (Grid.GetRow(element) == 1) // 두 번째 행 (인덱스 1)
+                            {
+                                mainContent = element as FrameworkElement;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 메인 콘텐츠 블러 효과 적용
+            bool blurApplied = false;
+            if (mainContent != null)
+            {
+                try
+                {
+                    var blurEffect = new BlurEffect { Radius = 0 };
+                    mainContent.Effect = blurEffect;
+
+                    DoubleAnimation blurAnimation = new DoubleAnimation(0, 10, TimeSpan.FromSeconds(0.3));
+                    blurEffect.BeginAnimation(BlurEffect.RadiusProperty, blurAnimation);
+
+                    blurApplied = true;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"블러 효과 적용 실패: {ex.Message}");
+                    // 블러 효과 실패 시 대체 효과 (투명도)
+                    mainContent.Opacity = 0.7;
+                }
+            }
+
+            // 오버레이 페이드 인
+            DoubleAnimation fadeIn = new DoubleAnimation(0, 0.5, TimeSpan.FromSeconds(0.3));
+            BlurOverlay.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+
+            // 사이드 패널 슬라이드 인
+            ThicknessAnimation slideIn = new ThicknessAnimation
+            {
+                From = new Thickness(-250, 0, 0, 0),
+                To = new Thickness(0, 0, 0, 0),
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            SidePanel.BeginAnimation(Grid.MarginProperty, slideIn);
         }
 
         private void CloseSidePanel_Click(object sender, RoutedEventArgs e)
         {
-            var slideOut = (Storyboard)FindResource("SlideOutStoryboard");
-            slideOut.Completed += (s, _) => SidePanel.Visibility = Visibility.Collapsed;
-            slideOut.Begin();
+            // 메인 콘텐츠 찾기
+            var mainContent = FindMainContent();
+
+            // 블러 효과 제거 애니메이션
+            if (mainContent.Effect is BlurEffect effect)
+            {
+                DoubleAnimation blurAnimation = new DoubleAnimation(10, 0, TimeSpan.FromSeconds(0.3));
+                blurAnimation.Completed += (s, args) => mainContent.Effect = null;
+                effect.BeginAnimation(BlurEffect.RadiusProperty, blurAnimation);
+            }
+
+            // 오버레이 페이드 아웃
+            DoubleAnimation fadeOut = new DoubleAnimation(BlurOverlay.Opacity, 0, TimeSpan.FromSeconds(0.3));
+            fadeOut.Completed += (s, args) => BlurOverlay.Visibility = Visibility.Collapsed;
+            BlurOverlay.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+
+            // 슬라이드아웃 애니메이션
+            ThicknessAnimation slideOut = new ThicknessAnimation
+            {
+                From = new Thickness(0, 0, 0, 0),
+                To = new Thickness(-250, 0, 0, 0),
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            slideOut.Completed += (s, args) => {
+                SidePanel.Visibility = Visibility.Collapsed;
+                SidePanel.Margin = new Thickness(-250, 0, 0, 0); // 초기 위치로 리셋
+            };
+            SidePanel.BeginAnimation(Grid.MarginProperty, slideOut);
+        }
+
+        // 배경 오버레이 클릭 시 사이드 패널 닫기
+        private void BackgroundOverlay_Click(object sender, MouseButtonEventArgs e)
+        {
+            // 이벤트 전파 중단
+            e.Handled = true;
+            CloseSidePanel_Click(null, null);
         }
 
         private void LoadProfile()
@@ -71,7 +211,34 @@ namespace chatapp
                 ? "상태 메시지가 없습니다."
                 : _currentUser.StatusMessage;
         }
+        private bool TryApplyBlurEffect(UIElement element, double radius)
+        {
+            try
+            {
+                // 이미 블러 효과가 있는지 확인
+                BlurEffect currentEffect = element.Effect as BlurEffect;
 
+                if (currentEffect == null)
+                {
+                    currentEffect = new BlurEffect { Radius = 0 };
+                    element.Effect = currentEffect;
+                }
+
+                // 애니메이션 적용
+                DoubleAnimation blurAnimation = new DoubleAnimation(
+                    currentEffect.Radius, radius, TimeSpan.FromSeconds(0.3));
+                currentEffect.BeginAnimation(BlurEffect.RadiusProperty, blurAnimation);
+
+                return true;
+            }
+            catch (Exception)
+            {
+                // 블러 효과를 지원하지 않는 경우 대체 효과 적용
+                // 예: 투명도만 변경
+                element.Opacity = radius > 0 ? 0.7 : 1.0;
+                return false;
+            }
+        }
         private async void LoadFriendData()
         {
             try
@@ -532,14 +699,15 @@ namespace chatapp
 
             string baseUrl = AppSettings.GetServerUrl();
 
+            // 1:1 채팅방에는 비밀번호 보호 설정 안함
             var request = new
             {
                 RoomId = roomId,
                 RoomName = roomName,
                 Password = password,
                 UserId = _currentUser.Id,
-                IsPrivate = true,  // 비밀번호 보호 여부
-                IsOneToOne = true, // 1:1 채팅방 여부 추가
+                IsPrivate = false,  // 비밀번호 보호 비활성화
+                IsOneToOne = true,  // 1:1 채팅방 여부는 유지
                 TargetUserIndex = friendIndex
             };
 

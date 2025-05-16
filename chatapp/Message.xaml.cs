@@ -21,6 +21,7 @@ using System.Collections.Generic;
 
 // 네임스페이스 충돌 해결을 위한 별칭 설정
 using IOPath = System.IO.Path;
+using System.Windows.Media.Effects;
 
 namespace chatapp
 {
@@ -207,29 +208,29 @@ namespace chatapp
         {
             string extension = System.IO.Path.GetExtension(url).ToLower();
             return extension == ".jpg" || extension == ".jpeg" || extension == ".png" ||
-                   extension == ".bmp" || extension == ".gif";
+                   extension == ".bmp" || extension == ".webp";
         }
         // URL이 동영상인지 확인하는 도우미 메소드
         private bool IsVideoUrl(string url)
         {
             string extension = System.IO.Path.GetExtension(url).ToLower();
             return extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
-                   extension == ".mkv" || extension == ".wmv";
+                   extension == ".mkv" || extension == ".wmv" || extension == ".gif";
         }
         private void ProcessMediaMessage(string senderId, string mediaUrl, DateTime timestamp)
         {
             if (IsImageUrl(mediaUrl))
             {
-                AddImageBubble(senderId, mediaUrl, timestamp);
+                CreateImageBubble(senderId, mediaUrl, timestamp);
             }
             else if (IsVideoUrl(mediaUrl))
             {
-                AddVideoBubble(senderId, mediaUrl, timestamp);
+                CreateVideoBubble(senderId, mediaUrl, timestamp);
             }
             else
             {
                 // 일반 URL 또는 다른 형식의 파일인 경우
-                AddChatBubble(senderId, mediaUrl, timestamp);
+                CreateChatBubble(senderId, mediaUrl, timestamp);
             }
         }
         private async void LoadChatFromServer()
@@ -278,21 +279,28 @@ namespace chatapp
                             continue;
 
                         // 날짜가 바뀌면 날짜 구분선 추가
-                        DateTime today = chat.Timestamp.Date;
-                        if (lastDay == null || lastDay.Value.Date != today)
-                        {
-                            AddDateSeparator(today);
-                            lastDay = today;
-                        }
-
+                        UIElement messageElement;
                         if (Uri.IsWellFormedUriString(chat.Message, UriKind.Absolute))
                         {
-                            ProcessMediaMessage(chat.Sender, chat.Message, chat.Timestamp);
+                            if (IsImageUrl(chat.Message))
+                            {
+                                messageElement = CreateImageBubble(chat.Sender, chat.Message, chat.Timestamp);
+                            }
+                            else if (IsVideoUrl(chat.Message))
+                            {
+                                messageElement = CreateVideoBubble(chat.Sender, chat.Message, chat.Timestamp);
+                            }
+                            else
+                            {
+                                messageElement = CreateChatBubble(chat.Sender, chat.Message, chat.Timestamp);
+                            }
                         }
                         else
                         {
-                            AddChatBubble(chat.Sender, chat.Message, chat.Timestamp);
+                            messageElement = CreateChatBubble(chat.Sender, chat.Message, chat.Timestamp);
                         }
+
+                        ChatStack.Children.Add(messageElement);
 
                         _chatHistory.Add(chat);
                     }
@@ -798,20 +806,41 @@ namespace chatapp
                 // 사용자 정보 로드 (프로필 이미지 URL 가져오기)
                 string profileImageUrl = await GetUserProfileImageUrl(userId);
 
-                if (!string.IsNullOrEmpty(profileImageUrl) && Uri.IsWellFormedUriString(profileImageUrl, UriKind.Absolute))
+                if (!string.IsNullOrEmpty(profileImageUrl))
                 {
                     // UI 스레드에서 이미지 설정
-                    this.Dispatcher.Invoke(() =>
+                    using (var client = new HttpClient())
                     {
-                        ImageBrush brush = new ImageBrush();
-                        BitmapImage bitmap = new BitmapImage();
-                        bitmap.BeginInit();
-                        bitmap.UriSource = new Uri(profileImageUrl);
-                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                        bitmap.EndInit();
-                        brush.ImageSource = bitmap;
-                        profileImage.Fill = brush;
-                    });
+                        try
+                        {
+                            var response = await client.GetAsync(profileImageUrl);
+                            if (response.IsSuccessStatusCode)
+                            {
+                                var imageData = await response.Content.ReadAsByteArrayAsync();
+
+                                this.Dispatcher.Invoke(() =>
+                                {
+                                    var bitmap = new BitmapImage();
+                                    bitmap.BeginInit();
+                                    using (var ms = new MemoryStream(imageData))
+                                    {
+                                        bitmap.StreamSource = ms;
+                                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                                        bitmap.EndInit();
+                                        bitmap.Freeze();
+                                    }
+
+                                    ImageBrush brush = new ImageBrush();
+                                    brush.ImageSource = bitmap;
+                                    profileImage.Fill = brush;
+                                });
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"프로필 이미지 로드 중 오류: {ex.Message}");
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -843,9 +872,41 @@ namespace chatapp
 
                     if (user != null && !string.IsNullOrEmpty(user.ProfileImage))
                     {
-                        // 캐시에 저장
-                        _userProfiles[userId] = user.ProfileImage;
-                        return user.ProfileImage;
+                        string profileUrl = user.ProfileImage;
+
+                        // 완전한 URL인지 확인
+                        if (Uri.IsWellFormedUriString(profileUrl, UriKind.Absolute))
+                        {
+                            // 이미 완전한 URL
+                        }
+                        // 파일명만 있는 경우
+                        else if (profileUrl.StartsWith("profile_"))
+                        {
+                            profileUrl = $"{serverUrl}/profiles/{profileUrl}";
+                            Console.WriteLine($"프로필 URL 생성: {profileUrl}");
+                        }
+
+                        // 이미지 URL이 실제로 접근 가능한지 확인
+                        try
+                        {
+                            var imageResponse = await client.GetAsync(profileUrl);
+                            if (imageResponse.IsSuccessStatusCode)
+                            {
+                                // 캐시에 저장
+                                _userProfiles[userId] = profileUrl;
+                                return profileUrl;
+                            }
+                            else
+                            {
+                                Console.WriteLine($"프로필 이미지 접근 실패: {imageResponse.StatusCode}");
+                                return string.Empty; // 이미지 접근 실패시 기본 이미지 사용
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"프로필 이미지 확인 중 오류: {ex.Message}");
+                            return string.Empty;
+                        }
                     }
                 }
 
@@ -856,130 +917,6 @@ namespace chatapp
                 Console.WriteLine($"사용자 프로필 조회 실패: {ex.Message}");
                 return string.Empty;
             }
-        }
-
-        // 기본 채팅 메시지 추가 메서드 (timestamp 없는 버전)
-        private void AddChatBubble(string senderId, string message)
-        {
-            // 타임스탬프가 없는 경우 현재 시간으로 추가
-            AddChatBubble(senderId, message, DateTime.Now);
-        }
-
-        // 타임스탬프가 있는 채팅 메시지 추가 메서드
-        private void AddChatBubble(string senderId, string message, DateTime timestamp)
-        {
-            string senderName = _userNames.ContainsKey(senderId) ? _userNames[senderId] : senderId;
-            bool isCurrentUser = senderId == _currentUser.Id;
-
-            var container = new StackPanel
-            {
-                Margin = new Thickness(isCurrentUser ? 5 : 0, 5, isCurrentUser ? 0 : 5, 5),
-                HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
-            };
-
-            // 메시지와 이름을 담을 스택패널
-            var messageStack = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                Margin = new Thickness(isCurrentUser ? 0 : 36, 0, isCurrentUser ? 36 : 0, 0) // 프로필 이미지 공간 확보
-            };
-
-            // 사용자 이름
-            var nameText = new TextBlock
-            {
-                Text = senderName,
-                FontWeight = FontWeights.Bold,
-                Foreground = Brushes.Black, // 글씨 색상을 검은색으로 변경
-                FontSize = 12,
-                Margin = new Thickness(5, 0, 5, 2),
-                HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
-            };
-
-            // 메시지 버블
-            var bubble = new Border
-            {
-                Background = isCurrentUser
-                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00CED1"))
-                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#008B8B")),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(10),
-                MaxWidth = 300,
-                Child = new TextBlock
-                {
-                    Text = message,
-                    FontSize = 14,
-                    Foreground = Brushes.Black,
-                    TextWrapping = TextWrapping.Wrap
-                }
-            };
-
-            // 시간 표시
-            var timeText = new TextBlock
-            {
-                Text = timestamp.ToString("HH:mm"),
-                FontSize = 10,
-                Foreground = Brushes.Gray,
-                Margin = new Thickness(5, 0, 5, 0),
-                HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
-            };
-
-            // 이름과 메시지 추가
-            messageStack.Children.Add(nameText);
-            messageStack.Children.Add(bubble);
-            messageStack.Children.Add(timeText);
-
-            // 프로필 이미지와 메시지를 담을 그리드
-            var grid = new Grid();
-
-            // 컬럼 정의
-            if (!isCurrentUser)
-            {
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) }); // 프로필 이미지 너비 증가
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 메시지
-            }
-            else
-            {
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 메시지
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) }); // 프로필 이미지 너비 증가
-            }
-
-            // 프로필 이미지 (비동기적으로 로드)
-            var profileImage = new Ellipse
-            {
-                Width = 36,
-                Height = 36,
-                Margin = new Thickness(0, 0, 0, 0), // 마진 제거
-                VerticalAlignment = VerticalAlignment.Top,
-                HorizontalAlignment = HorizontalAlignment.Left
-            };
-
-            // Panel.ZIndex 속성을 직접 설정하는 대신 Grid.SetZIndex 메서드 사용
-            Grid.SetZIndex(profileImage, 2); // 앞으로 가져오기
-
-            // 기본 배경색 설정 (프로필 이미지 로드 전)
-            profileImage.Fill = new SolidColorBrush(Colors.Gray);
-
-            // 이미지 비동기 로드
-            LoadProfileImage(senderId, profileImage);
-
-            // 그리드에 프로필 이미지와 메시지 추가
-            if (!isCurrentUser)
-            {
-                Grid.SetColumn(profileImage, 0);
-                Grid.SetColumn(messageStack, 1);
-            }
-            else
-            {
-                Grid.SetColumn(messageStack, 0);
-                Grid.SetColumn(profileImage, 1);
-            }
-
-            grid.Children.Add(profileImage);
-            grid.Children.Add(messageStack);
-
-            container.Children.Add(grid);
-            ChatStack.Children.Add(container);
-            ChatScrollViewer.ScrollToEnd();
         }
 
         private UIElement CreateChatBubble(string senderId, string message, DateTime timestamp)
@@ -1005,24 +942,26 @@ namespace chatapp
                     FontWeight = FontWeights.SemiBold,
                     FontSize = 12,
                     Margin = new Thickness(10, 0, 0, 3),
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333333")) // 어두운 회색으로 변경
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333333"))
                 };
                 bubbleStack.Children.Add(nameBlock);
             }
 
             // 버블 및 시간 래퍼
             Grid bubbleContainer = new Grid();
+            bubbleContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            bubbleContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            // 그리드 열 정의 추가
-            bubbleContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            bubbleContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            // 애플 iMessage 스타일 색상으로 통일
+            Color myMessageColor = (Color)ColorConverter.ConvertFromString("#34C759"); // Apple 녹색 (iMessage 스타일)
+            Color otherMessageColor = (Color)ColorConverter.ConvertFromString("#E9E9EB"); // Apple 회색 (iMessage 스타일)
 
             // 메시지 버블
             Border bubble = new Border
             {
                 Background = isCurrentUser
-                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4A86E8"))
-                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E9E9EB")),
+                    ? new SolidColorBrush(myMessageColor)
+                    : new SolidColorBrush(otherMessageColor),
                 CornerRadius = isCurrentUser
                     ? new CornerRadius(18, 5, 18, 18)
                     : new CornerRadius(5, 18, 18, 18),
@@ -1030,6 +969,15 @@ namespace chatapp
                 Margin = new Thickness(isCurrentUser ? 0 : 10, 0, isCurrentUser ? 10 : 0, 0),
                 HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
                 MaxWidth = 280
+            };
+
+            // 그림자 효과 추가 (애플 스타일)
+            bubble.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                BlurRadius = 6,
+                ShadowDepth = 1,
+                Opacity = 0.1,
+                Direction = 270
             };
 
             // 메시지 텍스트
@@ -1048,7 +996,7 @@ namespace chatapp
             {
                 Text = timestamp.ToString("HH:mm"),
                 FontSize = 10,
-                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#999999")),
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8E8E93")), // Apple 텍스트 색상
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Margin = new Thickness(isCurrentUser ? 0 : 5, 0, isCurrentUser ? 5 : 0, 3),
                 HorizontalAlignment = isCurrentUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
@@ -1225,12 +1173,25 @@ namespace chatapp
         }
         private void ToggleSidePanel_Click(object sender, RoutedEventArgs e)
         {
+            // 블러 오버레이 표시
+            BlurOverlay.Visibility = Visibility.Visible;
+            BlurOverlay.Opacity = 0;
+
+            // 메인 컨텐츠에 블러 효과 적용 (안전하게)
+            bool blurApplied = TryApplyBlurEffect(ChatStack, 10);
+
+            // 사이드 패널 표시
             SidePanel.Visibility = Visibility.Visible;
+
+
+            // 오버레이 페이드 인
+            DoubleAnimation fadeIn = new DoubleAnimation(0, 0.5, TimeSpan.FromSeconds(0.3));
+            BlurOverlay.BeginAnimation(UIElement.OpacityProperty, fadeIn);
 
             // 슬라이드인 애니메이션
             ThicknessAnimation slideIn = new ThicknessAnimation
             {
-                From = new Thickness(-250, 0, 0, 0),
+                From = new Thickness(-280, 0, 0, 0),
                 To = new Thickness(0, 0, 0, 0),
                 Duration = TimeSpan.FromSeconds(0.3),
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
@@ -1240,11 +1201,24 @@ namespace chatapp
 
         private void CloseSidePanel_Click(object sender, RoutedEventArgs e)
         {
+            // 블러 효과 제거 애니메이션
+            if (ChatStack.Effect is BlurEffect effect)
+            {
+                DoubleAnimation blurAnimation = new DoubleAnimation(10, 0, TimeSpan.FromSeconds(0.3));
+                blurAnimation.Completed += (s, args) => ChatStack.Effect = null;
+                effect.BeginAnimation(BlurEffect.RadiusProperty, blurAnimation);
+            }
+
+            // 오버레이 페이드 아웃
+            DoubleAnimation fadeOut = new DoubleAnimation(0.5, 0, TimeSpan.FromSeconds(0.3));
+            fadeOut.Completed += (s, args) => BlurOverlay.Visibility = Visibility.Collapsed;
+            BlurOverlay.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+
             // 슬라이드아웃 애니메이션
             ThicknessAnimation slideOut = new ThicknessAnimation
             {
                 From = new Thickness(0, 0, 0, 0),
-                To = new Thickness(-250, 0, 0, 0),
+                To = new Thickness(-280, 0, 0, 0),
                 Duration = TimeSpan.FromSeconds(0.3),
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
             };
@@ -1252,7 +1226,39 @@ namespace chatapp
             slideOut.Completed += (s, args) => SidePanel.Visibility = Visibility.Collapsed;
             SidePanel.BeginAnimation(Grid.MarginProperty, slideOut);
         }
+        // 배경 오버레이 클릭 시 사이드 패널 닫기
+        private void BackgroundOverlay_Click(object sender, MouseButtonEventArgs e)
+        {
+            CloseSidePanel_Click(null, null);
+        }
+        private bool TryApplyBlurEffect(UIElement element, double radius)
+        {
+            try
+            {
+                // 이미 블러 효과가 있는지 확인
+                BlurEffect currentEffect = element.Effect as BlurEffect;
 
+                if (currentEffect == null)
+                {
+                    currentEffect = new BlurEffect { Radius = 0 };
+                    element.Effect = currentEffect;
+                }
+
+                // 애니메이션 적용
+                DoubleAnimation blurAnimation = new DoubleAnimation(
+                    currentEffect.Radius, radius, TimeSpan.FromSeconds(0.3));
+                currentEffect.BeginAnimation(BlurEffect.RadiusProperty, blurAnimation);
+
+                return true;
+            }
+            catch (Exception)
+            {
+                // 블러 효과를 지원하지 않는 경우 대체 효과 적용
+                // 예: 투명도만 변경
+                element.Opacity = radius > 0 ? 0.7 : 1.0;
+                return false;
+            }
+        }
         private void OpenProfile_Click(object sender, MouseButtonEventArgs e)
         {
             // 사이드 패널 닫기
@@ -1401,7 +1407,7 @@ namespace chatapp
         {
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "모든 미디어 파일|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.mp4;*.mov;*.avi|이미지 파일|*.jpg;*.jpeg;*.png;*.bmp;*.gif|동영상 파일|*.mp4;*.mov;*.avi"
+                Filter = "모든 미디어 파일|*.jpg;*.jpeg;*.webp;*.png;*.bmp;*.gif;*.mp4;*.mov;*.avi;*.mkv;*.wmv|이미지 파일|*.jpg;*.jpeg;*.webp;*.png;*.bmp|동영상 파일|*.mp4;*.mov;*.avi;*.gif;*.mkv;*.wmv"
             };
 
             if (dlg.ShowDialog() == true)
@@ -1420,7 +1426,7 @@ namespace chatapp
                     // 파일 확장자 확인
                     string extension = IOPath.GetExtension(dlg.FileName).ToLower();
                     bool isVideo = extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
-                                   extension == ".mkv" || extension == ".wmv";
+                                   extension == ".mkv" || extension == ".gif" || extension == ".wmv";
 
                     HttpResponseMessage response;
 

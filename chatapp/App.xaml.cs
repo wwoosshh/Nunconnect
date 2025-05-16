@@ -14,7 +14,7 @@ namespace chatapp
     public partial class App : Application
     {
         // 현재 버전
-        public static string CurrentVersion { get; } = "1.5.2";
+        public static string CurrentVersion { get; } = "1.5.4";
 
         // 버전 응답 클래스
         public class VersionResponse

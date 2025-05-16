@@ -36,32 +36,84 @@ namespace chatapp
             // 프로필 이미지 로드
             LoadProfileImage();
         }
-        private void LoadProfileImage()
+        private async void LoadProfileImage()
         {
             try
             {
-                // ProfileImage가 URL 형식인지 확인
-                if (!string.IsNullOrEmpty(_user.ProfileImage) && Uri.IsWellFormedUriString(_user.ProfileImage, UriKind.Absolute))
+                if (string.IsNullOrEmpty(_user.ProfileImage))
                 {
-                    // URL인 경우 (서버에서 호스팅된 이미지)
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(_user.ProfileImage);
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad; // 캐싱 설정
-                    bitmap.EndInit();
-                    ProfileImage.Source = bitmap;
+                    Console.WriteLine("프로필 이미지 경로가 비어 있습니다.");
+                    return;
                 }
-                // 로컬 파일 경로인 경우 (하위 호환성 유지)
-                else if (!string.IsNullOrEmpty(_user.ProfileImage) && File.Exists(_user.ProfileImage))
+
+                Console.WriteLine($"프로필 이미지: {_user.ProfileImage}");
+
+                // 서버 URL 가져오기
+                string serverUrl = AppSettings.GetServerUrl();
+                string imageUrl;
+
+                // 완전한 URL인지 확인
+                if (Uri.IsWellFormedUriString(_user.ProfileImage, UriKind.Absolute))
                 {
-                    // 로컬 이미지를 서버에 업로드하도록 코드 추가
-                    UploadLocalProfileImage(_user.ProfileImage);
+                    imageUrl = _user.ProfileImage;
+                    Console.WriteLine("완전한 URL 형식 사용");
+                }
+                // 파일명만 있는 경우
+                else if (_user.ProfileImage.StartsWith("profile_"))
+                {
+                    imageUrl = $"{serverUrl}/profile{_user.ProfileImage}";
+                    Console.WriteLine($"파일명으로 URL 생성: {imageUrl}");
+                }
+                else
+                {
+                    Console.WriteLine("알 수 없는 이미지 형식");
+                    return;
+                }
+
+                // 이미지 로드
+                using (var client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromSeconds(10); // 타임아웃 설정
+
+                    try
+                    {
+                        // 이미지에 접근 가능한지 확인
+                        var response = await client.GetAsync(imageUrl);
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            // 이미지 데이터 로드
+                            var imageData = await response.Content.ReadAsByteArrayAsync();
+
+                            Application.Current.Dispatcher.Invoke(() => {
+                                var bitmap = new BitmapImage();
+                                bitmap.BeginInit();
+                                using (var ms = new MemoryStream(imageData))
+                                {
+                                    bitmap.StreamSource = ms;
+                                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                                    bitmap.EndInit();
+                                    bitmap.Freeze(); // UI 스레드에서 사용하기 위해 반드시 필요
+                                }
+
+                                ProfileImage.Source = bitmap;
+                                Console.WriteLine("이미지 로드 성공");
+                            });
+                        }
+                        else
+                        {
+                            Console.WriteLine($"이미지 접근 실패: {response.StatusCode}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"이미지 요청 중 오류: {ex.Message}");
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"프로필 이미지 로드 실패: {ex.Message}");
-                // 기본 이미지를 설정하거나 오류 표시
+                Console.WriteLine($"프로필 이미지 로드 전체 오류: {ex.Message}");
             }
         }
         private async void LoadUserFromServer()
@@ -366,8 +418,7 @@ namespace chatapp
                     // 선택한 이미지 파일을 서버에 업로드
                     var imageUrl = await UploadProfileImageToServer(openFileDialog.FileName);
 
-                    // 로딩 표시 숨기기
-                    ShowLoadingIndicator(false);
+                    Console.WriteLine($"서버에서 반환된 이미지 URL: {imageUrl}");
 
                     if (!string.IsNullOrEmpty(imageUrl))
                     {
@@ -375,25 +426,23 @@ namespace chatapp
                         _user.ProfileImage = imageUrl;
 
                         // 이미지 로드 및 표시
-                        var bitmap = new BitmapImage();
-                        bitmap.BeginInit();
-                        bitmap.UriSource = new Uri(imageUrl);
-                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                        bitmap.EndInit();
-                        ProfileImage.Source = bitmap;
+                        LoadProfileImage(); // 수정된 메서드 호출
 
-                        // 이미지 변경 효과 (작은 애니메이션)
-                        var scaleUp = new DoubleAnimation(0.9, 1.0, TimeSpan.FromSeconds(0.2));
-                        ProfileImage.RenderTransform = new ScaleTransform(1, 1);
-                        ProfileImage.RenderTransformOrigin = new Point(0.5, 0.5);
-                        ((ScaleTransform)ProfileImage.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, scaleUp);
-                        ((ScaleTransform)ProfileImage.RenderTransform).BeginAnimation(ScaleTransform.ScaleYProperty, scaleUp);
+                        // 서버에 프로필 정보 업데이트
+                        bool updateSuccess = await UpdateUserProfileOnServer();
+                        if (updateSuccess)
+                        {
+                            MessageBox.Show("프로필 이미지가 성공적으로 업데이트되었습니다.");
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
-                    ShowLoadingIndicator(false);
                     MessageBox.Show($"이미지 업로드 중 오류 발생: {ex.Message}");
+                }
+                finally
+                {
+                    ShowLoadingIndicator(false);
                 }
             }
         }

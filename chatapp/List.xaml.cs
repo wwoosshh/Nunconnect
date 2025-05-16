@@ -513,6 +513,7 @@ namespace chatapp
         private void CancelPasswordCheck_Click(object sender, RoutedEventArgs e)
         {
             PasswordCheckPanel.Visibility = Visibility.Collapsed;
+            ModalOverlay.Visibility = Visibility.Collapsed; // 오버레이도 함께 숨김 처리
             _currentSelectedRoom = null;
         }
 

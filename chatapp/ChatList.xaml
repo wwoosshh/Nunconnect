@@ -15,11 +15,152 @@
 
     <!-- 리소스는 그대로 유지 -->
     <Window.Resources>
-        <!-- 기본 색상 리소스 -->
-        <SolidColorBrush x:Key="PrimaryColor" Color="#4A86E8"/>
-        <SolidColorBrush x:Key="SecondaryColor" Color="#E8F0FE"/>
-        <SolidColorBrush x:Key="AccentColor" Color="#34A853"/>
-        <SolidColorBrush x:Key="ErrorColor" Color="#EA4335"/>
+        <!-- 애플 스타일 기본 버튼 -->
+        <Style x:Key="ApplePrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PrimaryColor}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                          BorderBrush="{TemplateBinding BorderBrush}" 
+                          BorderThickness="{TemplateBinding BorderThickness}" 
+                          CornerRadius="20">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <EventTrigger RoutedEvent="MouseEnter">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.05" Duration="0:0:0.1" />
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.05" Duration="0:0:0.1" />
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0.9" Duration="0:0:0.1" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+                <EventTrigger RoutedEvent="MouseLeave">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.0" Duration="0:0:0.1" />
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.0" Duration="0:0:0.1" />
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.1" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="RenderTransform">
+                        <Setter.Value>
+                            <ScaleTransform ScaleX="0.95" ScaleY="0.95"/>
+                        </Setter.Value>
+                    </Setter>
+                    <Setter Property="Opacity" Value="0.8"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!-- 애플 스타일 텍스트 버튼 -->
+        <Style x:Key="AppleTextButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                          BorderBrush="{TemplateBinding BorderBrush}" 
+                          BorderThickness="{TemplateBinding BorderThickness}" 
+                          CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <EventTrigger RoutedEvent="MouseEnter">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0.8" Duration="0:0:0.1" />
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.05" Duration="0:0:0.1" />
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.05" Duration="0:0:0.1" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+                <EventTrigger RoutedEvent="MouseLeave">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.1" />
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.0" Duration="0:0:0.1" />
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.0" Duration="0:0:0.1" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Opacity" Value="0.6"/>
+                    <Setter Property="RenderTransform">
+                        <Setter.Value>
+                            <ScaleTransform ScaleX="0.95" ScaleY="0.95"/>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 메뉴 아이템 호버 애니메이션 스타일 -->
+        <Style x:Key="MenuItemStyle" TargetType="Grid">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TransformGroup>
+                        <ScaleTransform ScaleX="1" ScaleY="1" />
+                        <TranslateTransform />
+                    </TransformGroup>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#F2F2F7" />
+                    <Setter Property="RenderTransform">
+                        <Setter.Value>
+                            <TransformGroup>
+                                <ScaleTransform ScaleX="1.05" ScaleY="1.05" />
+                                <TranslateTransform />
+                            </TransformGroup>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 애플 스타일 색상 리소스 -->
+        <SolidColorBrush x:Key="PrimaryColor" Color="#007AFF"/>
+        <!-- Apple Blue -->
+        <SolidColorBrush x:Key="SecondaryColor" Color="#F2F2F7"/>
+        <!-- Apple Light Gray -->
+        <SolidColorBrush x:Key="AccentColor" Color="#34C759"/>
+        <!-- Apple Green -->
+        <SolidColorBrush x:Key="ErrorColor" Color="#FF3B30"/>
+        <!-- Apple Red -->
+        <SolidColorBrush x:Key="BackgroundColor" Color="#FFFFFF"/>
+        <!-- White -->
+        <SolidColorBrush x:Key="TextPrimaryColor" Color="#000000"/>
+        <!-- Black -->
+        <SolidColorBrush x:Key="TextSecondaryColor" Color="#8E8E93"/>
+        <!-- Gray -->
 
         <!-- 스크롤 바 스타일 -->
         <Style x:Key="ScrollBarThumb" TargetType="{x:Type Thumb}">
@@ -353,7 +494,10 @@
 
                 <!-- 입력창 -->
                 <Grid Grid.Row="1" Margin="0,0,0,0">
-                    <Border Background="#F5F7F9" CornerRadius="20" Padding="5">
+                    <Border Background="{StaticResource SecondaryColor}" CornerRadius="20" Padding="5">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.1" Color="Black"/>
+                        </Border.Effect>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -361,28 +505,29 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <Button Grid.Column="0" Content="+" Width="40" Height="40" 
-                                   Background="Transparent" Foreground="{StaticResource PrimaryColor}" 
-                                   FontSize="20" FontWeight="Bold" Click="FileAddButton_Click" 
-                                   BorderThickness="0" Cursor="Hand"/>
+                            <TextBox Grid.Column="1" x:Name="MessageInput" Background="Transparent" 
+                                BorderThickness="0" Padding="8,10" VerticalAlignment="Center" 
+                                FontSize="14" TextWrapping="Wrap" AcceptsReturn="True"
+                                Tag="메시지 입력..." PreviewKeyDown="MessageInput_PreviewKeyDown"
+                                Foreground="{StaticResource TextPrimaryColor}"/>
 
-                            <TextBox x:Name="MessageInput" Grid.Column="1" Background="Transparent" 
-                                    BorderThickness="0" Padding="8,10" VerticalAlignment="Center" 
-                                    FontSize="14" Tag="메시지 입력..." KeyDown="MessageInput_KeyDown"/>
-
-                            <Button Grid.Column="2" Content="전송" Width="60" Height="40" 
-                                   Style="{StaticResource PrimaryButton}" Click="SendButton_Click" 
-                                   Margin="5,0"/>
+                                                        <Button Grid.Column="2" Content="전송" Width="60" Height="40" 
+                               Style="{StaticResource ApplePrimaryButton}" Click="SendButton_Click" 
+                               Margin="5,0"/>
                         </Grid>
                     </Border>
                 </Grid>
             </Grid>
         </Grid>
+        
+        <!-- 배경 오버레이 추가 (사이드 패널이 열릴 때만 표시) -->
+        <Rectangle x:Name="BlurOverlay" Fill="#66000000" Visibility="Collapsed" 
+              MouseLeftButtonDown="BackgroundOverlay_Click" Panel.ZIndex="0"/>
 
-        <!-- 사이드 패널 수정 - 전체 높이로 확장되도록 처리 -->
+        <!-- 사이드 패널 -->
         <Grid x:Name="SidePanel" Width="250" HorizontalAlignment="Left" Background="#FFFFFF" 
-             Visibility="Collapsed" Margin="-250,0,0,0" Panel.ZIndex="1"
-             VerticalAlignment="Stretch">
+         Visibility="Collapsed" Margin="-250,0,0,0" Panel.ZIndex="1"
+         VerticalAlignment="Stretch">
             <Border CornerRadius="20,0,20,20">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.2" Color="Black"/>
@@ -414,7 +559,8 @@
                     <!-- 메뉴 목록 -->
                     <StackPanel Grid.Row="1" Margin="0,20,0,0">
                         <!-- 프로필 -->
-                        <Grid Margin="15,0,15,0" Cursor="Hand" MouseLeftButtonDown="OpenProfile_Click">
+                        <Grid Margin="15,0,15,0" Style="{StaticResource MenuItemStyle}" MouseLeftButtonDown="OpenProfile_Click">
+
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
@@ -430,7 +576,7 @@
                         <Border Height="1" Background="#F2F2F2" Margin="15,15,15,15"/>
 
                         <!-- 내 친구 -->
-                        <Grid Margin="15,0,15,15" Cursor="Hand" MouseLeftButtonDown="OpenFriend_Click">
+                        <Grid Margin="15,0,15,15" Style="{StaticResource MenuItemStyle}" MouseLeftButtonDown="OpenFriend_Click">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
@@ -443,7 +589,7 @@
                         </Grid>
 
                         <!-- 채팅 목록 -->
-                        <Grid Margin="15,0,15,15" Cursor="Hand" MouseLeftButtonDown="OpenChatList_Click">
+                        <Grid Margin="15,0,15,15" Style="{StaticResource MenuItemStyle}" MouseLeftButtonDown="OpenChatList_Click">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
@@ -456,7 +602,7 @@
                         </Grid>
 
                         <!-- 앱 설정 -->
-                        <Grid Margin="15,0,15,15" Cursor="Hand" MouseLeftButtonDown="OpenSettings_Click">
+                        <Grid Margin="15,0,15,15" Style="{StaticResource MenuItemStyle}" MouseLeftButtonDown="OpenSettings_Click">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
@@ -473,7 +619,7 @@
 
                         <!-- 앱 정보 -->
                         <Grid Margin="15,30,15,15" HorizontalAlignment="Center">
-                            <TextBlock Text="Connect v1.4.0" FontSize="12" Foreground="#8E8E93" 
+                            <TextBlock Text="Connect v1.5.4" FontSize="12" Foreground="#8E8E93"
                                      HorizontalAlignment="Center"/>
                         </Grid>
                     </StackPanel>

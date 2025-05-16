@@ -92,7 +92,7 @@ namespace chatapp
                 var saveDialog = new Microsoft.Win32.SaveFileDialog
                 {
                     FileName = fileName,
-                    Filter = "이미지 파일|*.jpg;*.jpeg;*.png;*.bmp",
+                    Filter = "이미지 파일|*.jpg;*.jpeg;*.png;*.bmp;*webp",
                     DefaultExt = Path.GetExtension(fileName)
                 };
 

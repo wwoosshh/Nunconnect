@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using Newtonsoft.Json;
 using static chatapp.MainWindow;
@@ -220,11 +221,74 @@ namespace chatapp
                 storyboard.Begin();
             }, System.Windows.Threading.DispatcherPriority.Background);
         }
+        private bool TryApplyBlurEffect(UIElement element, double radius)
+        {
+            try
+            {
+                // 이미 블러 효과가 있는지 확인
+                BlurEffect currentEffect = element.Effect as BlurEffect;
+
+                if (currentEffect == null)
+                {
+                    currentEffect = new BlurEffect { Radius = 0 };
+                    element.Effect = currentEffect;
+                }
+
+                // 애니메이션 적용
+                DoubleAnimation blurAnimation = new DoubleAnimation(
+                    currentEffect.Radius, radius, TimeSpan.FromSeconds(0.3));
+                currentEffect.BeginAnimation(BlurEffect.RadiusProperty, blurAnimation);
+
+                return true;
+            }
+            catch (Exception)
+            {
+                // 블러 효과를 지원하지 않는 경우 대체 효과 적용
+                // 예: 투명도만 변경
+                element.Opacity = radius > 0 ? 0.7 : 1.0;
+                return false;
+            }
+        }
+        private void MessageInput_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            {
+                e.Handled = true;
+                SendButton_Click(sender, e);
+            }
+        }
         private void ToggleSidePanel_Click(object sender, RoutedEventArgs e)
         {
-            SidePanel.Visibility = Visibility.Visible;
+            // 현재 SidePanel 상태 확인
+            if (SidePanel.Visibility == Visibility.Visible)
+            {
+                // 이미 열려있으면 닫기
+                CloseSidePanel_Click(null, null);
+                return;
+            }
 
-            // 슬라이드인 애니메이션
+            // SidePanel이 닫혀있으면 열기
+            Console.WriteLine("사이드 패널 열기");
+
+            // 초기 상태 설정
+            SidePanel.Margin = new Thickness(-250, 0, 0, 0);
+            SidePanel.Visibility = Visibility.Visible;
+            BlurOverlay.Visibility = Visibility.Visible;
+            BlurOverlay.Opacity = 0;
+
+            // 블러 효과 적용
+            ChatStack.Effect = new BlurEffect { Radius = 0 };
+
+            // 애니메이션 적용
+            // 1. 블러 효과 애니메이션
+            DoubleAnimation blurAnimation = new DoubleAnimation(0, 10, TimeSpan.FromSeconds(0.3));
+            ((BlurEffect)ChatStack.Effect).BeginAnimation(BlurEffect.RadiusProperty, blurAnimation);
+
+            // 2. 오버레이 페이드 인
+            DoubleAnimation fadeIn = new DoubleAnimation(0, 0.5, TimeSpan.FromSeconds(0.3));
+            BlurOverlay.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+
+            // 3. 사이드 패널 슬라이드 인
             ThicknessAnimation slideIn = new ThicknessAnimation
             {
                 From = new Thickness(-250, 0, 0, 0),
@@ -237,17 +301,36 @@ namespace chatapp
 
         private void CloseSidePanel_Click(object sender, RoutedEventArgs e)
         {
+            // 블러 효과 제거 애니메이션
+            if (ChatStack.Effect is BlurEffect effect)
+            {
+                DoubleAnimation blurAnimation = new DoubleAnimation(10, 0, TimeSpan.FromSeconds(0.3));
+                blurAnimation.Completed += (s, args) => ChatStack.Effect = null;
+                effect.BeginAnimation(BlurEffect.RadiusProperty, blurAnimation);
+            }
+
+            // 오버레이 페이드 아웃
+            DoubleAnimation fadeOut = new DoubleAnimation(0.5, 0, TimeSpan.FromSeconds(0.3));
+            fadeOut.Completed += (s, args) => BlurOverlay.Visibility = Visibility.Collapsed;
+            BlurOverlay.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+
             // 슬라이드아웃 애니메이션
             ThicknessAnimation slideOut = new ThicknessAnimation
             {
                 From = new Thickness(0, 0, 0, 0),
-                To = new Thickness(-250, 0, 0, 0),
+                To = new Thickness(-280, 0, 0, 0),
                 Duration = TimeSpan.FromSeconds(0.3),
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
             };
 
             slideOut.Completed += (s, args) => SidePanel.Visibility = Visibility.Collapsed;
             SidePanel.BeginAnimation(Grid.MarginProperty, slideOut);
+        }
+
+        // 배경 오버레이 클릭 시 사이드 패널 닫기
+        private void BackgroundOverlay_Click(object sender, MouseButtonEventArgs e)
+        {
+            CloseSidePanel_Click(null, null);
         }
 
         private void OpenProfile_Click(object sender, MouseButtonEventArgs e)
@@ -391,7 +474,7 @@ namespace chatapp
             }
         }
 
-        private void FileAddButton_Click(object sender, RoutedEventArgs e)
+        private void SendFileButton_Click(object sender, RoutedEventArgs e)
         {
             MessageBox.Show("파일 첨부 기능은 준비 중입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
         }
