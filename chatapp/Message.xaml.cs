@@ -131,8 +131,28 @@ namespace chatapp
 
             // 로딩 애니메이션 설정
             InitializeLoadingAnimation();
-        }
 
+            // 상단바 초기화
+            InitializeTopBar();
+
+            CurrentRoomId = _roomId;
+        }
+        private void InitializeTopBar()
+        {
+            // 초기 상태 설정
+            _isTopBarExpanded = false;
+            TopBarBorder.Height = _defaultTopBarHeight;
+
+            // 확장 아이콘 초기화
+            ExpandIcon.RenderTransformOrigin = new Point(0.5, 0.5);
+            ExpandIcon.RenderTransform = new RotateTransform(0);
+
+            // 메뉴 패널 초기화
+            ExtendedMenuPanel.Visibility = Visibility.Collapsed;
+            ExtendedMenuPanel.Opacity = 0;
+            // 디버깅 메시지
+            Console.WriteLine("상단바 초기화 완료");
+        }
         private void ChatScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
             if (!_isScrollEventEnabled)
@@ -184,8 +204,6 @@ namespace chatapp
                         // 현재 채팅방에 참여 중인 사용자 수 계산
                         _onlineCount = users.Count(u => u.JoinedRoomIds.Contains(_roomId));
 
-                        // 룸 정보 업데이트
-                        UpdateRoomInfo();
                     }
                     else
                     {
@@ -199,10 +217,7 @@ namespace chatapp
             }
         }
 
-        private void UpdateRoomInfo()
-        {
-            RoomInfoText.Text = $"온라인 {_onlineCount}명";
-        }
+       
         // URL이 이미지인지 확인하는 도우미 메소드
         private bool IsImageUrl(string url)
         {
@@ -740,10 +755,12 @@ namespace chatapp
             }
         }
 
-        private void ShowSendingIndicator(bool isVisible)
+        // 전송 중 표시자 메서드 수정
+        private void ShowSendingIndicator(bool isVisible, string message = "전송 중")
         {
             if (isVisible)
             {
+                SendingMessage.Text = message; // 새로 추가할 TextBlock
                 SendingIndicator.Visibility = Visibility.Visible;
                 _loadingDotsTimer.Start();
 
@@ -760,6 +777,15 @@ namespace chatapp
                 fadeOut.Completed += (s, e) => SendingIndicator.Visibility = Visibility.Collapsed;
                 SendingIndicator.BeginAnimation(UIElement.OpacityProperty, fadeOut);
             }
+        }
+
+        // 진행 상태 업데이트 메서드 추가
+        private void UpdateSendingIndicator(string message)
+        {
+            this.Dispatcher.Invoke(() =>
+            {
+                SendingMessage.Text = message;
+            });
         }
 
         private void SendButton_Click(object sender, RoutedEventArgs e)
@@ -1061,6 +1087,8 @@ namespace chatapp
                     if (senderId != _currentUser.Id && !IsActive)
                     {
                         string roomName = await GetRoomNameAsync(CurrentRoomId);
+                        NotificationManager.Instance.ShowNotification(roomName, message, CurrentRoomId, _currentUser);
+
                         // UI 스레드에서 알림 창 표시
                         Application.Current.Dispatcher.Invoke(() =>
                         {
@@ -1407,67 +1435,82 @@ namespace chatapp
         {
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "모든 미디어 파일|*.jpg;*.jpeg;*.webp;*.png;*.bmp;*.gif;*.mp4;*.mov;*.avi;*.mkv;*.wmv|이미지 파일|*.jpg;*.jpeg;*.webp;*.png;*.bmp|동영상 파일|*.mp4;*.mov;*.avi;*.gif;*.mkv;*.wmv"
+                Filter = "모든 미디어 파일|*.jpg;*.jpeg;*.webp;*.png;*.bmp;*.gif;*.mp4;*.mov;*.avi;*.mkv;*.wmv|이미지 파일|*.jpg;*.jpeg;*.webp;*.png;*.bmp|동영상 파일|*.mp4;*.mov;*.avi;*.gif;*.mkv;*.wmv",
+                Multiselect = true // 여러 파일 선택 가능하도록 설정
             };
 
             if (dlg.ShowDialog() == true)
             {
                 try
                 {
-                    // 전송 중 표시자 활성화
-                    ShowSendingIndicator(true);
+                    // 선택된 파일이 없으면 종료
+                    if (dlg.FileNames.Length == 0)
+                        return;
 
-                    using var client = new HttpClient();
-                    using var form = new MultipartFormDataContent();
-                    using var fs = File.OpenRead(dlg.FileName);
+                    // 진행 상황 표시 업데이트
+                    int totalFiles = dlg.FileNames.Length;
+                    int currentFile = 0;
 
-                    form.Add(new StreamContent(fs), "file", IOPath.GetFileName(dlg.FileName));
+                    // 전송 중 표시자 활성화 및 진행 상태 표시
+                    ShowSendingIndicator(true, $"파일 전송 중 (0/{totalFiles})");
 
-                    // 파일 확장자 확인
-                    string extension = IOPath.GetExtension(dlg.FileName).ToLower();
-                    bool isVideo = extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
-                                   extension == ".mkv" || extension == ".gif" || extension == ".wmv";
-
-                    HttpResponseMessage response;
-
-                    // 파일 타입에 따라 다른 API 호출
-                    if (isVideo)
+                    foreach (string filePath in dlg.FileNames)
                     {
-                        // 동영상 파일인 경우
-                        var videoApiUrl = $"{AppSettings.GetServerUrl()}/api/File/videoupload?roomId={_roomId}&senderId={_currentUser.Id}";
-                        response = await client.PostAsync(videoApiUrl, form);
-                    }
-                    else
-                    {
-                        // 이미지 파일인 경우
-                        var imageApiUrl = $"{AppSettings.GetServerUrl()}/api/File/upload?roomId={_roomId}&senderId={_currentUser.Id}";
-                        response = await client.PostAsync(imageApiUrl, form);
+                        currentFile++;
+                        UpdateSendingIndicator($"파일 전송 중 ({currentFile}/{totalFiles})");
+
+                        using var client = new HttpClient();
+                        using var form = new MultipartFormDataContent();
+                        using var fs = File.OpenRead(filePath);
+
+                        form.Add(new StreamContent(fs), "file", IOPath.GetFileName(filePath));
+
+                        // 파일 확장자 확인
+                        string extension = IOPath.GetExtension(filePath).ToLower();
+                        bool isVideo = extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
+                                       extension == ".mkv" || extension == ".gif" || extension == ".wmv";
+
+                        HttpResponseMessage response;
+
+                        // 파일 타입에 따라 다른 API 호출
+                        if (isVideo)
+                        {
+                            // 동영상 파일인 경우
+                            var videoApiUrl = $"{AppSettings.GetServerUrl()}/api/File/videoupload?roomId={_roomId}&senderId={_currentUser.Id}";
+                            response = await client.PostAsync(videoApiUrl, form);
+                        }
+                        else
+                        {
+                            // 이미지 파일인 경우
+                            var imageApiUrl = $"{AppSettings.GetServerUrl()}/api/File/upload?roomId={_roomId}&senderId={_currentUser.Id}";
+                            response = await client.PostAsync(imageApiUrl, form);
+                        }
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            var json = await response.Content.ReadAsStringAsync();
+                            dynamic result = JsonConvert.DeserializeObject(json);
+                            string fileUrl = result.Url;
+
+                            // SignalR로 파일 알림은 서버에서 처리하므로 여기서는 생략
+                            // 본인 채팅창에 즉시 표시 (필요시)
+                            if (isVideo)
+                            {
+                                AddVideoBubble(_currentUser.Id, fileUrl, DateTime.Now);
+                            }
+                            else // 이미지
+                            {
+                                AddImageBubble(_currentUser.Id, fileUrl, DateTime.Now);
+                            }
+                        }
+                        else
+                        {
+                            ShowErrorMessage($"파일 업로드 실패 ({currentFile}/{totalFiles}): {await response.Content.ReadAsStringAsync()}");
+                        }
                     }
 
                     // 전송 중 표시자 비활성화
                     ShowSendingIndicator(false);
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var json = await response.Content.ReadAsStringAsync();
-                        dynamic result = JsonConvert.DeserializeObject(json);
-                        string fileUrl = result.Url;
-
-                        // SignalR로 파일 알림은 서버에서 처리하므로 여기서는 생략
-                        // 본인 채팅창에 즉시 표시 (필요시)
-                        if (isVideo)
-                        {
-                            AddVideoBubble(_currentUser.Id, fileUrl, DateTime.Now);
-                        }
-                        else // 이미지
-                        {
-                            AddImageBubble(_currentUser.Id, fileUrl, DateTime.Now);
-                        }
-                    }
-                    else
-                    {
-                        ShowErrorMessage("파일 업로드 실패: " + await response.Content.ReadAsStringAsync());
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -1684,12 +1727,6 @@ namespace chatapp
             }
         }
 
-        private void RoomInfo_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show($"채팅방: {RoomTitleText.Text}\n채팅방 ID: {_roomId}\n참여자: {_onlineCount}명",
-                "채팅방 정보", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
         private void ShowErrorMessage(string message)
         {
             MessageBox.Show(message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -1705,7 +1742,335 @@ namespace chatapp
         {
             this.WindowState = WindowState.Minimized;
         }
+        // 상단바 확장 상태 관련 변수 추가
+        private bool _isTopBarExpanded = false;
+        private double _defaultTopBarHeight = 80;
+        private double _expandedTopBarHeight = 150; // 확장 높이 조정
+        // 상단바 클릭 이벤트 핸들러
+        // 파란색 상단바 클릭 이벤트 핸들러
+        private void TopBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // 확장/축소 상태를 토글
+            if (_isTopBarExpanded)
+            {
+                CollapseTopBar();
+            }
+            else
+            {
+                ExpandTopBar();
+            }
+            e.Handled = true; // 이벤트 전파 방지
+        }
+        private void ChatArea_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // 축소 기능 제거 - 아무 동작 없음
+        }
+        // 상단바 확장 메서드 수정
+        private void ExpandTopBar()
+        {
+            if (_isTopBarExpanded)
+                return;
 
+            _isTopBarExpanded = true;
+
+            // 높이 애니메이션
+            DoubleAnimation heightAnimation = new DoubleAnimation
+            {
+                To = _expandedTopBarHeight,
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            // 메뉴 패널 표시 애니메이션
+            ExtendedMenuPanel.Visibility = Visibility.Visible;
+            DoubleAnimation opacityAnimation = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            // 화살표 아이콘 회전
+            DoubleAnimation rotateAnimation = new DoubleAnimation
+            {
+                To = 180,
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            // 애니메이션 시작
+            TopBarBorder.BeginAnimation(Border.HeightProperty, heightAnimation);
+            ExtendedMenuPanel.BeginAnimation(UIElement.OpacityProperty, opacityAnimation);
+            // 메뉴 패널 위치 재설정
+            ExtendedMenuPanel.VerticalAlignment = VerticalAlignment.Center;
+            ExtendedMenuPanel.Margin = new Thickness(0, 20, 0, 0);
+            ExtendedMenuPanel.Visibility = Visibility.Visible;
+            // 회전 변환 적용
+            RotateTransform rotateTransform = ExpandIcon.RenderTransform as RotateTransform;
+            if (rotateTransform == null)
+            {
+                rotateTransform = new RotateTransform();
+                ExpandIcon.RenderTransformOrigin = new Point(0.5, 0.5);
+                ExpandIcon.RenderTransform = rotateTransform;
+            }
+            rotateTransform.BeginAnimation(RotateTransform.AngleProperty, rotateAnimation);
+        }
+
+        // 상단바 축소 메서드 수정
+        private void CollapseTopBar()
+        {
+            Console.WriteLine("CollapseTopBar 시작 - 현재 상태: " + _isTopBarExpanded);
+
+            if (!_isTopBarExpanded)
+            {
+                Console.WriteLine("이미 축소된 상태임");
+                return;
+            }
+
+            _isTopBarExpanded = false;
+            Console.WriteLine("상태 변경됨: " + _isTopBarExpanded);
+
+            // 높이 애니메이션
+            DoubleAnimation heightAnimation = new DoubleAnimation
+            {
+                To = _defaultTopBarHeight,
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            // 메뉴 패널 숨김 애니메이션
+            DoubleAnimation opacityAnimation = new DoubleAnimation
+            {
+                From = 1,
+                To = 0,
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            // 애니메이션 완료 후 메뉴 패널 숨김
+            opacityAnimation.Completed += (s, e) => ExtendedMenuPanel.Visibility = Visibility.Collapsed;
+
+            // 화살표 아이콘 회전
+            DoubleAnimation rotateAnimation = new DoubleAnimation
+            {
+                To = 0,
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            // 애니메이션 시작
+            TopBarBorder.BeginAnimation(Border.HeightProperty, heightAnimation);
+            ExtendedMenuPanel.BeginAnimation(UIElement.OpacityProperty, opacityAnimation);
+
+            // 회전 변환 적용
+            RotateTransform rotateTransform = ExpandIcon.RenderTransform as RotateTransform;
+            if (rotateTransform != null)
+            {
+                rotateTransform.BeginAnimation(RotateTransform.AngleProperty, rotateAnimation);
+            }
+        }
+
+        // 채팅방 정보 버튼 클릭 이벤트 핸들러
+        private async void RoomInfoButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 채팅방 정보 가져오기
+                using HttpClient client = new HttpClient();
+                string baseUrl = AppSettings.GetServerUrl();
+
+                // 채팅방 목록 가져오기
+                var chatListResponse = await client.GetAsync($"{baseUrl}/api/User/getChatList");
+                var userListResponse = await client.GetAsync($"{baseUrl}/api/User/getAllUsers");
+
+                if (!chatListResponse.IsSuccessStatusCode || !userListResponse.IsSuccessStatusCode)
+                {
+                    MessageBox.Show("채팅방 정보를 가져오는 데 실패했습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var chatListJson = await chatListResponse.Content.ReadAsStringAsync();
+                var userListJson = await userListResponse.Content.ReadAsStringAsync();
+
+                var allRooms = JsonConvert.DeserializeObject<List<ChatRoom>>(chatListJson);
+                var allUsers = JsonConvert.DeserializeObject<List<MainWindow.UserData>>(userListJson);
+
+                // 현재 채팅방 정보 찾기
+                var currentRoom = allRooms?.FirstOrDefault(r => r.RoomId == _roomId);
+                if (currentRoom == null)
+                {
+                    MessageBox.Show("채팅방 정보를 찾을 수 없습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // 채팅방 참여자 목록 구하기
+                var participantUsers = allUsers?.Where(u => u.JoinedRoomIds.Contains(_roomId)).ToList();
+                var participantNames = participantUsers?.Select(u => u.Name).ToList() ?? new List<string>();
+
+                // 정보 표시
+                string roomInfo = $"채팅방 이름: {currentRoom.Name}\n" +
+                                 $"비밀번호 설정: {(string.IsNullOrEmpty(currentRoom.Password) ? "아니오" : "예")}\n" +
+                                 $"1:1 채팅방: {(currentRoom.IsOneToOne ? "예" : "아니오")}\n" +
+                                 $"생성일: {currentRoom.CreatedDate.ToString("yyyy-MM-dd HH:mm")}\n" +
+                                 $"참가 인원: {participantNames.Count}명\n\n" +
+                                 $"참가자 목록:\n{string.Join("\n", participantNames)}";
+
+                MessageBox.Show(roomInfo, $"채팅방 정보 - {currentRoom.Name}", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"채팅방 정보를 가져오는 중 오류가 발생했습니다: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // 이미지 목록 버튼 클릭 이벤트 핸들러
+        private void ImageListButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 페이드 아웃 애니메이션
+                DoubleAnimation fadeOut = new DoubleAnimation(1, 0.7, TimeSpan.FromSeconds(0.2));
+
+                fadeOut.Completed += (s, args) =>
+                {
+                    // 이미지 목록 창 열기
+                    ImageListWindow imageListWindow = new ImageListWindow(_roomId, _currentUser);
+                    imageListWindow.Owner = this;
+
+                    // 애니메이션 효과 추가
+                    imageListWindow.Opacity = 0;
+                    imageListWindow.ShowDialog();
+
+                    // 페이드 인 애니메이션
+                    DoubleAnimation fadeIn = new DoubleAnimation(0.7, 1, TimeSpan.FromSeconds(0.2));
+                    this.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+                };
+
+                this.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"이미지 목록을 여는 중 오류가 발생했습니다: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // 동영상 목록 버튼 클릭 이벤트 핸들러
+        private void VideoListButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 페이드 아웃 애니메이션
+                DoubleAnimation fadeOut = new DoubleAnimation(1, 0.7, TimeSpan.FromSeconds(0.2));
+
+                fadeOut.Completed += (s, args) =>
+                {
+                    // 동영상 목록 창 열기
+                    VideoListWindow videoListWindow = new VideoListWindow(_roomId, _currentUser);
+                    videoListWindow.Owner = this;
+
+                    // 애니메이션 효과 추가
+                    videoListWindow.Opacity = 0;
+                    videoListWindow.ShowDialog();
+
+                    // 페이드 인 애니메이션
+                    DoubleAnimation fadeIn = new DoubleAnimation(0.7, 1, TimeSpan.FromSeconds(0.2));
+                    this.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+                };
+
+                this.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"동영상 목록을 여는 중 오류가 발생했습니다: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        // 상단바 확장/축소 토글 메서드
+        private void ToggleTopBarExpansion()
+        {
+            _isTopBarExpanded = !_isTopBarExpanded;
+
+            // 확장 시 높이 애니메이션
+            DoubleAnimation heightAnimation = new DoubleAnimation
+            {
+                To = _isTopBarExpanded ? _expandedTopBarHeight : _defaultTopBarHeight,
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            // 확장 메뉴 표시/숨김 애니메이션
+            DoubleAnimation opacityAnimation = new DoubleAnimation
+            {
+                To = _isTopBarExpanded ? 1 : 0,
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            // 확장 아이콘 회전 애니메이션
+            DoubleAnimation rotateAnimation = new DoubleAnimation
+            {
+                To = _isTopBarExpanded ? 180 : 0,
+                Duration = TimeSpan.FromSeconds(0.3),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            // 애니메이션 시작
+            TopBarBorder.BeginAnimation(Border.HeightProperty, heightAnimation);
+            ExtendedMenuPanel.BeginAnimation(UIElement.OpacityProperty, opacityAnimation);
+
+            // 회전 변환 적용
+            RotateTransform rotateTransform = ExpandIcon.RenderTransform as RotateTransform;
+            if (rotateTransform == null)
+            {
+                rotateTransform = new RotateTransform();
+                ExpandIcon.RenderTransformOrigin = new Point(0.5, 0.5);
+                ExpandIcon.RenderTransform = rotateTransform;
+            }
+            rotateTransform.BeginAnimation(RotateTransform.AngleProperty, rotateAnimation);
+
+            // 메뉴 패널 표시/숨김
+            if (_isTopBarExpanded)
+            {
+                ExtendedMenuPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                // 애니메이션 완료 후 숨김
+                opacityAnimation.Completed += (s, e) =>
+                {
+                    if (!_isTopBarExpanded)
+                    {
+                        ExtendedMenuPanel.Visibility = Visibility.Collapsed;
+                    }
+                };
+            }
+        }
+
+        // 추가 메뉴 버튼 이벤트 핸들러
+        private void FriendList_Click(object sender, RoutedEventArgs e)
+        {
+            // 페이드 아웃 애니메이션
+            var fadeOut = new DoubleAnimation
+            {
+                From = 1,
+                To = 0,
+                Duration = TimeSpan.FromSeconds(0.2)
+            };
+
+            fadeOut.Completed += (s, args) =>
+            {
+                Friend friendWindow = new Friend(_currentUser, _roomId);
+                friendWindow.Show();
+                this.Close();
+            };
+
+            this.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+        }
+
+        private void Settings_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("설정 기능은 준비 중입니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             // 페이드 아웃 애니메이션과 함께 앱 종료
@@ -1726,6 +2091,8 @@ namespace chatapp
             public string Name { get; set; } = string.Empty;
             public string Password { get; set; } = string.Empty;
             public bool IsPrivate { get; set; } = false;
+            public bool IsOneToOne { get; set; } = false;
+            public DateTime CreatedDate { get; set; } = DateTime.Now;
         }
 
         public class ChatMessage

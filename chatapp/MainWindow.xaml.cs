@@ -17,6 +17,10 @@ namespace chatapp
     public partial class MainWindow : Window
     {
         private const string USER_CONFIG_FILE = "user.cfg"; // 사용자 정보 파일 이름
+        private const int MAX_LOGIN_ATTEMPTS = 5;           // 최대 로그인 시도 횟수
+        private const int LOGIN_COOLDOWN_SECONDS = 60;      // 제한 시간 (초)
+        private const int MIN_LOGIN_INTERVAL_SECONDS = 2;   // 최소 로그인 시도 간격 (초)
+        private const int LOGIN_ATTEMPT_EXPIRY_DAYS = 7;    // 로그인 시도 기록 보관 기간 (일)
 
         public MainWindow()
         {
@@ -162,6 +166,12 @@ namespace chatapp
                 return;
             }
 
+            // 로그인 시도 제한 확인
+            if (!CheckLoginAttemptLimit())
+            {
+                return;
+            }
+
             // 로그인 버튼 비활성화 및 로딩 표시
             LoginButton.IsEnabled = false;
             LoadingIndicator.Visibility = Visibility.Visible;
@@ -175,12 +185,134 @@ namespace chatapp
 
             if (user != null)
             {
-                // 로그인 성공, 사용자 정보 저장
+                // 로그인 성공, 사용자 정보 저장 및 시도 횟수 초기화
                 SaveUserInfo(id, HashPassword(pw), user);
+                ResetLoginAttempts(id);
 
                 // 로그인 성공 함수 호출
                 await LoginSuccess(user);
             }
+            else
+            {
+                // 로그인 실패, 시도 횟수 증가
+                RecordFailedLoginAttempt(id);
+            }
+        }
+
+        // 로그인 시도 제한 확인 메서드
+        private bool CheckLoginAttemptLimit()
+        {
+            // 기존 사용자 정보 로드
+            var userInfo = LoadUserInfo();
+            if (userInfo == null)
+            {
+                userInfo = new UserConfig();
+                SaveUserConfig(userInfo);
+            }
+
+            // 일주일 이상 된 로그인 시도 기록 제거
+            CleanupOldLoginAttempts(userInfo);
+
+            // 1. 연속 실패 로그인 시도 개수 확인
+            if (userInfo.FailedAttempts >= MAX_LOGIN_ATTEMPTS)
+            {
+                // 마지막 실패 시점으로부터 경과 시간 확인
+                TimeSpan timeSinceLastFailed = DateTime.Now - userInfo.LastFailedAttempt;
+                if (timeSinceLastFailed.TotalSeconds < LOGIN_COOLDOWN_SECONDS)
+                {
+                    int remainingSeconds = LOGIN_COOLDOWN_SECONDS - (int)timeSinceLastFailed.TotalSeconds;
+                    MessageBox.Show($"로그인 시도 횟수를 초과하였습니다. {remainingSeconds}초 후에 다시 시도해주세요.",
+                                  "로그인 제한", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return false;
+                }
+                else
+                {
+                    // 제한 시간이 지났으므로 카운터 초기화
+                    userInfo.FailedAttempts = 0;
+                    SaveUserConfig(userInfo);
+                }
+            }
+
+            // 2. 연속 로그인 시도 간격 확인 (최소 간격 적용)
+            if (userInfo.LoginAttempts.Count > 0)
+            {
+                DateTime lastAttempt = userInfo.LoginAttempts.Last();
+                TimeSpan timeSinceLastAttempt = DateTime.Now - lastAttempt;
+
+                if (timeSinceLastAttempt.TotalSeconds < MIN_LOGIN_INTERVAL_SECONDS)
+                {
+                    MessageBox.Show($"너무 빠른 로그인 시도입니다. 잠시 후 다시 시도해주세요.",
+                                  "로그인 제한", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return false;
+                }
+            }
+
+            // 현재 로그인 시도 기록
+            userInfo.LoginAttempts.Add(DateTime.Now);
+            SaveUserConfig(userInfo);
+
+            return true;
+        }
+
+        // 로그인 실패 기록 메서드
+        private void RecordFailedLoginAttempt(string id)
+        {
+            var userInfo = LoadUserInfo() ?? new UserConfig();
+
+            // 실패 횟수 증가 및 마지막 실패 시간 업데이트
+            userInfo.FailedAttempts++;
+            userInfo.LastFailedAttempt = DateTime.Now;
+
+            SaveUserConfig(userInfo);
+        }
+
+        // 로그인 성공 시 시도 횟수 초기화 메서드
+        private void ResetLoginAttempts(string id)
+        {
+            var userInfo = LoadUserInfo();
+            if (userInfo != null)
+            {
+                userInfo.FailedAttempts = 0;
+                SaveUserConfig(userInfo);
+            }
+        }
+
+        // 사용자 설정 파일 저장 메서드 (기존 SaveUserInfo 메서드와 별도로 구현)
+        private void SaveUserConfig(UserConfig userInfo)
+        {
+            try
+            {
+                // JSON으로 직렬화
+                string json = JsonConvert.SerializeObject(userInfo, Formatting.Indented);
+
+                // 파일에 저장
+                string configPath = GetConfigFilePath();
+                File.WriteAllText(configPath, json);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"사용자 정보 저장 실패: {ex.Message}", "경고", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        // 오래된 로그인 시도 기록 정리 메서드
+        private void CleanupOldLoginAttempts(UserConfig userInfo)
+        {
+            if (userInfo.LoginAttempts == null)
+            {
+                userInfo.LoginAttempts = new List<DateTime>();
+                return;
+            }
+
+            // 일주일 이전 날짜 계산
+            DateTime cutoffDate = DateTime.Now.AddDays(-LOGIN_ATTEMPT_EXPIRY_DAYS);
+
+            // 일주일 이상 지난 로그인 시도 제거
+            userInfo.LoginAttempts = userInfo.LoginAttempts
+                .Where(date => date > cutoffDate)
+                .ToList();
+
+            SaveUserConfig(userInfo);
         }
 
         // 로그인 성공 후 알림 서비스 초기화
@@ -211,6 +343,10 @@ namespace chatapp
                 {
                     var jsonString = await response.Content.ReadAsStringAsync();
                     var user = JsonConvert.DeserializeObject<UserData>(jsonString);
+
+                    // 로그인 성공 시 비밀번호 찾기 버튼 숨김
+                    FindCredentialsButton.Visibility = Visibility.Collapsed;
+
                     return user;
                 }
                 else
@@ -226,6 +362,9 @@ namespace chatapp
                         }
 
                         MessageBox.Show(errorMessage, "로그인 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                        // 로그인 실패 시 비밀번호 찾기 버튼 표시
+                        FindCredentialsButton.Visibility = Visibility.Visible;
                     }
                 }
             }
@@ -234,6 +373,9 @@ namespace chatapp
                 if (!isAutoLogin)
                 {
                     MessageBox.Show($"서버 연결 오류: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                    // 서버 연결 오류 시에도 비밀번호 찾기 버튼 표시
+                    FindCredentialsButton.Visibility = Visibility.Visible;
                 }
                 else
                 {
@@ -243,7 +385,12 @@ namespace chatapp
 
             return null;
         }
-
+        private void FindCredentialsButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 비밀번호 재설정 창 열기
+            ResetPassword resetPasswordWindow = new ResetPassword();
+            resetPasswordWindow.ShowDialog();
+        }
         private string HashPassword(string password)
         {
             using SHA256 sha = SHA256.Create();
@@ -348,6 +495,11 @@ namespace chatapp
             public string Email { get; set; } = string.Empty;
             public int Index { get; set; }
             public DateTime LastLogin { get; set; }
+
+            // 로그인 시도 관련 필드 추가
+            public List<DateTime> LoginAttempts { get; set; } = new List<DateTime>();
+            public int FailedAttempts { get; set; } = 0;
+            public DateTime LastFailedAttempt { get; set; } = DateTime.MinValue;
         }
 
         public class UserData

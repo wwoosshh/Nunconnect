@@ -260,46 +260,82 @@
 
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto" x:Name="TopBarRow"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- 상단바 -->
-            <Grid Grid.Row="0" Margin="0,0,0,15">
-                <Border Background="{StaticResource PrimaryColor}" Height="80" VerticalAlignment="Top">
+            <!-- 상단바 (확장 가능하도록 수정) -->
+            <Grid Grid.Row="0" Margin="0,0,0,15" x:Name="TopBarGrid">
+                <!-- 파란색 배경 영역 - 전체 영역에 클릭 이벤트 추가 -->
+                <Border Background="{StaticResource PrimaryColor}" x:Name="TopBarBorder" Height="80" VerticalAlignment="Top"
+                        MouseLeftButtonDown="TopBar_MouseLeftButtonDown">
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.2" Color="Black"/>
                     </Border.Effect>
+
+                    <!-- 확장 상태 표시 아이콘 -->
+                    <TextBlock x:Name="ExpandIcon" Text="▼" Foreground="White" FontSize="16" 
+                        HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5" 
+                        FontWeight="Bold"/>
                 </Border>
 
-                <Border Background="White" Height="100" VerticalAlignment="Bottom" CornerRadius="20,20,0,0" Margin="0,50,0,0">
+                <Border Background="White" Height="0" VerticalAlignment="Bottom" CornerRadius="20,20,0,0" Margin="0,50,0,0">
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.1" Color="Black"/>
                     </Border.Effect>
                 </Border>
 
+                <!-- 상단 메뉴 -->
                 <Grid Margin="20,15,20,0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
                         <Button x:Name="MenuButton" Content="☰" Width="40" Height="40" Background="Transparent" 
-                               Foreground="White" FontSize="20" Click="ToggleSidePanel_Click" 
-                               BorderThickness="0" Cursor="Hand"/>
+                           Foreground="White" FontSize="20" Click="ToggleSidePanel_Click" 
+                           BorderThickness="0" Cursor="Hand"/>
 
                         <TextBlock x:Name="RoomTitleText" Text="채팅방" Foreground="White" FontSize="22" 
-                                 FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0"/>
-
-                        <TextBlock x:Name="RoomInfoText" FontSize="14" Foreground="White" Opacity="0.8"
-                                 VerticalAlignment="Center" Margin="10,0,0,0" 
-                                 MouseLeftButtonDown="RoomInfo_Click" Cursor="Hand"/>
+                             FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0"/>
                     </StackPanel>
-
-                    <Button Content="나가기" Width="80" Height="30" Background="#FF5252" Foreground="White"
-                           HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,0,0"
-                           BorderThickness="0" Click="LeaveRoom_Click" Cursor="Hand"/>
                 </Grid>
+
+                <!-- 확장 시 표시될 메뉴 버튼들 -->
+                <StackPanel x:Name="ExtendedMenuPanel" Visibility="Collapsed" Opacity="0"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,20,0,0"
+                    Orientation="Horizontal">
+
+                    <Button x:Name="RoomInfoButton" Content="채팅방 정보" Style="{StaticResource AppleTextButton}" 
+                      Foreground="White" Width="100" Height="40" Margin="10,0"
+                      Click="RoomInfoButton_Click" Background="#40FFFFFF" BorderThickness="0">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="20"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <Button x:Name="ImageListButton" Content="이미지 목록" Style="{StaticResource AppleTextButton}"
+                      Foreground="White" Width="100" Height="40" Margin="10,0"
+                      Click="ImageListButton_Click" Background="#40FFFFFF" BorderThickness="0">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="20"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <Button x:Name="VideoListButton" Content="동영상 목록" Style="{StaticResource AppleTextButton}"
+                      Foreground="White" Width="100" Height="40" Margin="10,0"
+                      Click="VideoListButton_Click" Background="#40FFFFFF" BorderThickness="0">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="20"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
             </Grid>
 
-            <!-- 채팅 영역 -->
-            <Grid Grid.Row="1" Margin="10,0,10,20">
+            <!-- 채팅 영역 (클릭 이벤트 추가) -->
+            <Grid Grid.Row="1" Margin="10,0,10,20" MouseLeftButtonDown="ChatArea_MouseLeftButtonDown">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
@@ -312,15 +348,18 @@
 
                 <!-- 전송 중 표시자 -->
                 <Border x:Name="SendingIndicator" Grid.Row="0" Background="#80000000" 
-            Visibility="Collapsed" HorizontalAlignment="Center" 
-            VerticalAlignment="Center" CornerRadius="10" Padding="15,10">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="전송 중" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="LoadingDots" Text="" Foreground="White" FontSize="14" 
-                     VerticalAlignment="Center" Margin="2,0,0,0"/>
+                        Visibility="Collapsed" HorizontalAlignment="Center" 
+                        VerticalAlignment="Center" CornerRadius="10" Padding="15,10">
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock x:Name="SendingMessage" Text="전송 중" Foreground="White" FontSize="14" 
+                            HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock Text="진행 중" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="LoadingDots" Text="" Foreground="White" FontSize="14" 
+                                VerticalAlignment="Center" Margin="2,0,0,0"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
-
 
                 <!-- 입력창 -->
                 <Grid Grid.Row="1" Margin="0,0,0,0">
@@ -336,18 +375,18 @@
                             </Grid.ColumnDefinitions>
 
                             <Button Grid.Column="0" Content="📎" Width="40" Height="40" 
-                   Style="{StaticResource AppleTextButton}" Foreground="{StaticResource PrimaryColor}" 
-                   FontSize="20" Click="SendFileButton_Click"/>
+                              Style="{StaticResource AppleTextButton}" Foreground="{StaticResource PrimaryColor}" 
+                              FontSize="20" Click="SendFileButton_Click"/>
 
                             <TextBox Grid.Column="1" x:Name="MessageInput" Background="Transparent" 
-                    BorderThickness="0" Padding="8,10" VerticalAlignment="Center" 
-                    FontSize="14" TextWrapping="Wrap" AcceptsReturn="True"
-                    Tag="메시지 입력..." PreviewKeyDown="MessageInput_PreviewKeyDown"
-                    Foreground="{StaticResource TextPrimaryColor}"/>
+                               BorderThickness="0" Padding="8,10" VerticalAlignment="Center" 
+                               FontSize="14" TextWrapping="Wrap" AcceptsReturn="True"
+                               Tag="메시지 입력..." PreviewKeyDown="MessageInput_PreviewKeyDown"
+                               Foreground="{StaticResource TextPrimaryColor}"/>
 
                             <Button Grid.Column="2" Content="전송" Width="60" Height="40" 
-                   Style="{StaticResource ApplePrimaryButton}" Click="SendButton_Click" 
-                   Margin="5,0"/>
+                              Style="{StaticResource ApplePrimaryButton}" Click="SendButton_Click" 
+                              Margin="5,0"/>
                         </Grid>
                     </Border>
                 </Grid>
@@ -453,7 +492,7 @@
 
                         <!-- 앱 정보 -->
                         <Grid Margin="15,30,15,15" HorizontalAlignment="Center">
-                            <TextBlock Text="Connect v1.5.4" FontSize="12" Foreground="#8E8E93" 
+                            <TextBlock Text="Connect v1.6.1" FontSize="12" Foreground="#8E8E93" 
                                      HorizontalAlignment="Center"/>
                         </Grid>
                     </StackPanel>

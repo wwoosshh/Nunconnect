@@ -619,7 +619,7 @@
 
                         <!-- 앱 정보 -->
                         <Grid Margin="15,30,15,15" HorizontalAlignment="Center">
-                            <TextBlock Text="Connect v1.5.4" FontSize="12" Foreground="#8E8E93"
+                            <TextBlock Text="Connect v1.6.1" FontSize="12" Foreground="#8E8E93"
                                      HorizontalAlignment="Center"/>
                         </Grid>
                     </StackPanel>

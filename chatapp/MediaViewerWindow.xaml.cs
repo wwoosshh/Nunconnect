@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -18,6 +19,12 @@ namespace chatapp
         private bool _isPlaying = false;
         private bool _isGif = false;
         private WebBrowser _gifBrowser = null;
+
+        // 갤러리 모드를 위한 속성 추가
+        private List<string> _galleryMedias = new List<string>();
+        private int _currentMediaIndex = 0;
+        private bool _isGalleryMode = false;
+
         public MediaViewerWindow(string mediaUrl)
         {
             InitializeComponent();
@@ -34,12 +41,162 @@ namespace chatapp
             _timer = new DispatcherTimer();
             _timer.Interval = TimeSpan.FromMilliseconds(500);
             _timer.Tick += Timer_Tick;
+
+            // 키보드 이벤트 등록
+            this.KeyDown += Window_KeyDown;
+        }
+        // 갤러리 모드 설정 메서드 추가
+        public void SetGalleryMode(List<string> mediaUrls)
+        {
+            if (mediaUrls == null || mediaUrls.Count == 0)
+                return;
+
+            _galleryMedias = new List<string>(mediaUrls);
+            _currentMediaIndex = _galleryMedias.IndexOf(_mediaUrl);
+
+            if (_currentMediaIndex < 0) _currentMediaIndex = 0;
+
+            _isGalleryMode = true;
+
+            // 갤러리 UI 요소 표시
+            ShowGalleryControls();
+
+            // 버튼 상태 업데이트
+            UpdateGalleryButtonsState();
         }
 
+        // 갤러리 컨트롤 표시 메서드
+        private void ShowGalleryControls()
+        {
+            // 이미 XAML에 요소가 있다고 가정하고 표시 상태만 변경
+            if (PrevMediaButton != null) PrevMediaButton.Visibility = Visibility.Visible;
+            if (NextMediaButton != null) NextMediaButton.Visibility = Visibility.Visible;
+            if (MediaCountText != null)
+            {
+                MediaCountText.Visibility = Visibility.Visible;
+                UpdateMediaCounter();
+            }
+
+            // 만약 XAML에 요소가 없다면 여기서 동적으로 생성할 수 있음
+            // 이 예제에서는 XAML에 이미 요소가 있다고 가정
+        }
+
+        // 미디어 카운터 업데이트
+        private void UpdateMediaCounter()
+        {
+            if (!_isGalleryMode || MediaCountText == null) return;
+
+            MediaCountText.Text = $"{_currentMediaIndex + 1} / {_galleryMedias.Count}";
+        }
+
+        // 갤러리 버튼 상태 업데이트
+        private void UpdateGalleryButtonsState()
+        {
+            if (!_isGalleryMode)
+            {
+                // 갤러리 모드가 아니면 버튼 숨기기
+                if (PrevMediaButton != null) PrevMediaButton.Visibility = Visibility.Collapsed;
+                if (NextMediaButton != null) NextMediaButton.Visibility = Visibility.Collapsed;
+                if (MediaCountText != null) MediaCountText.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            // 첫 번째 미디어일 때 이전 버튼 비활성화
+            if (PrevMediaButton != null)
+                PrevMediaButton.IsEnabled = _currentMediaIndex > 0;
+
+            // 마지막 미디어일 때 다음 버튼 비활성화
+            if (NextMediaButton != null)
+                NextMediaButton.IsEnabled = _currentMediaIndex < _galleryMedias.Count - 1;
+
+            // 미디어 카운터 업데이트
+            UpdateMediaCounter();
+        }
+
+        // 이전 미디어 버튼 클릭 핸들러
+        private void PrevMediaButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isGalleryMode || _currentMediaIndex <= 0) return;
+
+            // 현재 재생 중이던 미디어 중지
+            StopCurrentMedia();
+
+            _currentMediaIndex--;
+
+            // 새 창으로 미디어 열기
+            OpenNewMediaViewer(_galleryMedias[_currentMediaIndex]);
+        }
+
+        // 다음 미디어 버튼 클릭 핸들러
+        private void NextMediaButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isGalleryMode || _currentMediaIndex >= _galleryMedias.Count - 1) return;
+
+            // 현재 재생 중이던 미디어 중지
+            StopCurrentMedia();
+
+            _currentMediaIndex++;
+
+            // 새 창으로 미디어 열기
+            OpenNewMediaViewer(_galleryMedias[_currentMediaIndex]);
+        }
+
+        // 현재 미디어 중지
+        private void StopCurrentMedia()
+        {
+            if (MediaPlayer != null)
+            {
+                MediaPlayer.Stop();
+                _timer.Stop();
+            }
+        }
+
+        // 새 미디어 뷰어 창 열기
+        private void OpenNewMediaViewer(string mediaUrl)
+        {
+            var newViewer = new MediaViewerWindow(mediaUrl);
+
+            // 갤러리 모드 설정 전달
+            if (_isGalleryMode)
+            {
+                newViewer.Loaded += (s, e) =>
+                {
+                    newViewer.SetGalleryMode(_galleryMedias);
+                };
+            }
+
+            // 위치 및 크기 전달
+            newViewer.Left = this.Left;
+            newViewer.Top = this.Top;
+            newViewer.Width = this.Width;
+            newViewer.Height = this.Height;
+
+            // 새 창 열고 현재 창 닫기
+            newViewer.Show();
+            this.Close();
+        }
+
+        // 키보드 이벤트 추가 (왼쪽/오른쪽 화살표로 미디어 이동)
+        private void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (!_isGalleryMode) return;
+
+            if (e.Key == Key.Left)
+            {
+                PrevMediaButton_Click(sender, e);
+            }
+            else if (e.Key == Key.Right)
+            {
+                NextMediaButton_Click(sender, e);
+            }
+        }
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             // 미디어 로드
             LoadMedia();
+
+            // 갤러리 버튼 초기 상태 설정
+            UpdateGalleryButtonsState();
         }
 
         private void LoadMedia()
@@ -237,14 +394,17 @@ namespace chatapp
 
         private async void DownloadButton_Click(object sender, RoutedEventArgs e)
         {
+            // 다운로드 버튼 비활성화
+            DownloadButton.IsEnabled = false;
+            DownloadButton.Content = "다운로드 중...";
+
             try
             {
-                // 다운로드 버튼 비활성화
-                DownloadButton.IsEnabled = false;
-                DownloadButton.Content = "다운로드 중...";
+                // 갤러리 모드에서는 현재 표시중인 미디어를 다운로드
+                string mediaUrlToDownload = _isGalleryMode ? _galleryMedias[_currentMediaIndex] : _mediaUrl;
 
                 // 동영상 URL에서 파일명 추출
-                string fileName = Path.GetFileName(new Uri(_mediaUrl).LocalPath);
+                string fileName = Path.GetFileName(new Uri(mediaUrlToDownload).LocalPath);
 
                 var saveDialog = new Microsoft.Win32.SaveFileDialog
                 {
@@ -300,18 +460,16 @@ namespace chatapp
                         }
                     }
                 }
-
-                // 다운로드 버튼 복원
-                DownloadButton.IsEnabled = true;
-                DownloadButton.Content = "다운로드";
             }
             catch (Exception ex)
+            {
+                MessageBox.Show($"파일 다운로드 중 오류 발생: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
             {
                 // 다운로드 버튼 복원
                 DownloadButton.IsEnabled = true;
                 DownloadButton.Content = "다운로드";
-
-                MessageBox.Show($"파일 다운로드 중 오류 발생: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

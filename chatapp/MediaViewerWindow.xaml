@@ -66,7 +66,41 @@
                 </StackPanel>
             </Border>
         </Grid>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,10">
+            <Button x:Name="PrevMediaButton" Content="◀" Width="40" Height="40" Margin="5,0" 
+            Click="PrevMediaButton_Click" Visibility="Collapsed" 
+            Background="#60000000" Foreground="White" BorderThickness="0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                        CornerRadius="20" Padding="10,5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
 
+            <TextBlock x:Name="MediaCountText" Text="0 / 0" Foreground="White" 
+               Background="#60000000" Padding="10,5" Margin="5,0" 
+               VerticalAlignment="Center" Visibility="Collapsed">
+                <TextBlock.Effect>
+                    <DropShadowEffect ShadowDepth="1" BlurRadius="3" Color="Black" Opacity="0.7"/>
+                </TextBlock.Effect>
+            </TextBlock>
+
+            <Button x:Name="NextMediaButton" Content="▶" Width="40" Height="40" Margin="5,0" 
+            Click="NextMediaButton_Click" Visibility="Collapsed" 
+            Background="#60000000" Foreground="White" BorderThickness="0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                        CornerRadius="20" Padding="10,5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </StackPanel>
         <!-- 하단 컨트롤 영역 -->
         <Border x:Name="MediaControls" Grid.Row="2" Background="#333333" Height="70">
             <Grid Margin="20,5">

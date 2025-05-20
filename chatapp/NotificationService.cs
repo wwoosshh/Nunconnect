@@ -34,7 +34,7 @@ public class NotificationService
             .Build();
 
         // 메시지 수신 이벤트 처리
-        _hubConnection.On<string, string, string>("ReceiveNotification", (roomId, senderId, message) =>
+        _hubConnection.On<string, string, string>("GlobalMessage", (roomId, senderId, message) =>
         {
             // 자신이 보낸 메시지가 아닌 경우만 알림
             if (senderId != _currentUser.Id)

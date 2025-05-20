@@ -116,7 +116,7 @@ namespace chatapp
 
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "https://nunconnect.netlify.app/",
+                    FileName = "https://connect-website-vert.vercel.app/",
                     UseShellExecute = true
                 });
 
@@ -222,7 +222,7 @@ namespace chatapp
 
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "https://nunconnect.netlify.app/",
+                    FileName = "https://connect-website-vert.vercel.app/",
                     UseShellExecute = true
                 });
             }

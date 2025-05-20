@@ -129,93 +129,6 @@
                 </Setter.Value>
             </Setter>
         </Style>
-
-        <!-- 모던 텍스트박스 스타일 -->
-        <Style x:Key="ModernTextBox" TargetType="TextBox">
-            <Setter Property="Background" Value="#F5F5F7"/>
-            <Setter Property="Foreground" Value="Black"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="16,12"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" 
-                              CornerRadius="10" 
-                              Padding="0">
-                            <Grid>
-                                <ScrollViewer x:Name="PART_ContentHost" 
-                                             Margin="{TemplateBinding Padding}" 
-                                             VerticalAlignment="Center"/>
-                                <TextBlock x:Name="WatermarkText" 
-                                         Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" 
-                                         Foreground="#A0A0A0"
-                                         Margin="{TemplateBinding Padding}"
-                                         VerticalAlignment="Center"
-                                         Visibility="Collapsed"/>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="Text" Value="">
-                                <Setter TargetName="WatermarkText" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.6"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#EAEAEF"/>
-                            </Trigger>
-                            <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#EAEAEF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- 모던 패스워드박스 스타일 -->
-        <Style x:Key="ModernPasswordBox" TargetType="PasswordBox">
-            <Setter Property="Background" Value="#F5F5F7"/>
-            <Setter Property="Foreground" Value="Black"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="16,12"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="PasswordBox">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" 
-                              CornerRadius="10" 
-                              Padding="0">
-                            <Grid>
-                                <ScrollViewer x:Name="PART_ContentHost" 
-                                             Margin="{TemplateBinding Padding}" 
-                                             VerticalAlignment="Center"/>
-                                <TextBlock x:Name="WatermarkText" 
-                                         Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" 
-                                         Foreground="#A0A0A0"
-                                         Margin="{TemplateBinding Padding}"
-                                         VerticalAlignment="Center"
-                                         Visibility="Collapsed"/>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.6"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#EAEAEF"/>
-                            </Trigger>
-                            <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#EAEAEF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
 
     <Window.Template>
@@ -280,23 +193,27 @@
             <StackPanel Grid.Row="1" Margin="0,0,0,0" x:Name="RegisterPanel" Opacity="0">
                 <!-- 아이디 -->
                 <TextBlock Text="아이디" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                <TextBox x:Name="IdTextBox" Style="{StaticResource ModernTextBox}" 
-                       Height="50" Margin="0,0,0,15"/>
+                <TextBox x:Name="IdTextBox"
+                       Height="50" Margin="0,0,0,15"
+                         Tag="아이디 입력"/>
 
                 <!-- 비밀번호 -->
                 <TextBlock Text="비밀번호" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                <PasswordBox x:Name="PasswordBox" Style="{StaticResource ModernPasswordBox}" 
-                           Height="50" Margin="0,0,0,15"/>
+                <PasswordBox x:Name="PasswordBox"
+                           Height="50" Margin="0,0,0,15"
+                             Tag="비밀번호 입력"/>
 
                 <!-- 닉네임 -->
                 <TextBlock Text="닉네임" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                <TextBox x:Name="NicknameTextBox" Style="{StaticResource ModernTextBox}" 
-                       Height="50" Margin="0,0,0,15"/>
+                <TextBox x:Name="NicknameTextBox"
+                       Height="50" Margin="0,0,0,15"
+                         Tag="닉네임 입력"/>
 
                 <!-- 이메일 -->
                 <TextBlock Text="이메일" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                <TextBox x:Name="EmailTextBox" Style="{StaticResource ModernTextBox}" 
-                       Height="50" Margin="0,0,0,15"/>
+                <TextBox x:Name="EmailTextBox"
+                       Height="50" Margin="0,0,0,15"
+                         Tag="이메일 입력"/>
 
                 <!-- 정보 메시지 -->
                 <TextBlock Text="가입 후 이메일 인증이 필요합니다." Foreground="#8E8E93" 
