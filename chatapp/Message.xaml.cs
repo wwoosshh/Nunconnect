@@ -18,9 +18,9 @@ using static chatapp.MainWindow;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;
-
-// 네임스페이스 충돌 해결을 위한 별칭 설정
 using IOPath = System.IO.Path;
+using Path = System.Windows.Shapes.Path;
+// 네임스페이스 충돌 해결을 위한 별칭 설정
 using System.Windows.Media.Effects;
 
 namespace chatapp
@@ -41,7 +41,7 @@ namespace chatapp
         // 페이징 관련 변수
         private bool _isLoadingMessages = false;
         private bool _hasMoreMessages = true;
-        private int _pageSize = 100;
+        private int _pageSize = 30;
         private DateTime? _oldestMessageTime = null;
         private bool _initialLoading = true;
         private bool _isScrollEventEnabled = true;
@@ -51,6 +51,8 @@ namespace chatapp
             InitializeComponent();
             _currentUser = user ?? throw new ArgumentNullException(nameof(user));
             _roomId = roomId ?? throw new ArgumentNullException(nameof(roomId));
+
+            _chatHistory = new List<ChatMessage>(200);
 
             // SignalR 설정...
             _hubConnection = new HubConnectionBuilder()
@@ -256,28 +258,44 @@ namespace chatapp
                 _initialLoading = true;
                 _isScrollEventEnabled = false;
 
+                // 로딩 표시
+                TextBlock loadingIndicator = new TextBlock
+                {
+                    Text = "채팅 로딩 중...",
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#999999")),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 20, 0, 20)
+                };
+                ChatStack.Children.Add(loadingIndicator);
+
                 using HttpClient client = new HttpClient();
-                // 최신 메시지 100개만 요청
-                var response = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/User/loadMessages?roomId={_roomId}&count={_pageSize}&latest=true");
+                // 페이지 크기를 더 작게 설정 (100→30)
+                var pageSize = 30;
+
+                // 최신 메시지만 요청
+                var response = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/User/loadMessages?roomId={_roomId}&count={pageSize}&latest=true");
+
+                // 로딩 표시 제거
+                ChatStack.Children.Clear();
 
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync();
                     var chatHistory = JsonConvert.DeserializeObject<List<ChatMessage>>(json);
 
-                    ChatStack.Children.Clear();
-                    _chatHistory.Clear();
-
                     if (chatHistory == null || chatHistory.Count == 0)
                     {
                         // 환영 메시지 추가
                         AddSystemMessage("채팅방에 오신 것을 환영합니다!");
                         _hasMoreMessages = false;
+                        _isLoadingMessages = false;
+                        _initialLoading = false;
+                        _isScrollEventEnabled = true;
                         return;
                     }
 
-                    // 더 불러올 메시지가 있는지 확인 (개수가 pageSize와 같으면 더 있을 가능성이 있음)
-                    _hasMoreMessages = chatHistory.Count >= _pageSize;
+                    // 더 불러올 메시지가 있는지 확인
+                    _hasMoreMessages = chatHistory.Count >= pageSize;
 
                     // 가장 오래된 메시지 시간 저장
                     if (chatHistory.Count > 0)
@@ -285,15 +303,35 @@ namespace chatapp
                         _oldestMessageTime = chatHistory.Min(m => m.Timestamp);
                     }
 
-                    // 날짜별 그룹화 준비
-                    DateTime? lastDay = null;
-
+                    // 채팅 히스토리에 추가 (최대 개수 제한)
+                    _chatHistory.Clear();
                     foreach (var chat in chatHistory)
                     {
                         if (string.IsNullOrWhiteSpace(chat.Message))
                             continue;
 
+                        _chatHistory.Add(chat);
+                    }
+
+                    // 날짜별 그룹화 준비
+                    DateTime? lastDay = null;
+
+                    // UI에 메시지 추가
+                    foreach (var chat in chatHistory.OrderBy(m => m.Timestamp)) // 날짜순 정렬
+                    {
+                        if (string.IsNullOrWhiteSpace(chat.Message))
+                            continue;
+
                         // 날짜가 바뀌면 날짜 구분선 추가
+                        DateTime messageDay = chat.Timestamp.Date;
+                        if (lastDay == null || lastDay.Value.Date != messageDay)
+                        {
+                            var dateGrid = CreateDateSeparator(messageDay);
+                            ChatStack.Children.Add(dateGrid);
+                            lastDay = messageDay;
+                        }
+
+                        // 메시지 종류에 따라 다른 UI 요소 생성
                         UIElement messageElement;
                         if (Uri.IsWellFormedUriString(chat.Message, UriKind.Absolute))
                         {
@@ -316,13 +354,30 @@ namespace chatapp
                         }
 
                         ChatStack.Children.Add(messageElement);
-
-                        _chatHistory.Add(chat);
                     }
 
                     // 초기 로딩 시 스크롤을 아래로 이동
                     await Task.Delay(100); // UI 업데이트 대기
                     ChatScrollViewer.ScrollToEnd();
+
+                    // 이전 메시지가 더 있다면 상단에 로드 버튼 표시
+                    if (_hasMoreMessages)
+                    {
+                        Button loadMoreButton = new Button
+                        {
+                            Content = "이전 메시지 로드",
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            Margin = new Thickness(0, 10, 0, 10),
+                            Padding = new Thickness(10, 5, 10, 5),
+                            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F0F0F0")),
+                            BorderThickness = new Thickness(0),
+                            Cursor = Cursors.Hand
+                        };
+
+                        loadMoreButton.Click += (s, e) => LoadMoreMessages();
+
+                        ChatStack.Children.Insert(0, loadMoreButton);
+                    }
                 }
                 else
                 {
@@ -524,6 +579,14 @@ namespace chatapp
                     Margin = new Thickness(0, 10, 0, 10)
                 };
 
+                // 이전 로드 버튼 제거 (있다면)
+                UIElement oldButton = null;
+                if (ChatStack.Children.Count > 0 && ChatStack.Children[0] is Button)
+                {
+                    oldButton = ChatStack.Children[0];
+                    ChatStack.Children.RemoveAt(0);
+                }
+
                 // 스크롤 위치 정보 저장
                 double currentOffset = ChatScrollViewer.VerticalOffset;
                 double currentHeight = ChatScrollViewer.ExtentHeight;
@@ -532,9 +595,11 @@ namespace chatapp
                 ChatStack.Children.Insert(0, loadingIndicator);
 
                 // 이전 메시지 요청 (oldestMessageTime 이전의 메시지)
+                // 페이지 크기를 30으로 설정
+                var pageSize = 30;
                 using HttpClient client = new HttpClient();
                 string before = _oldestMessageTime.Value.ToString("yyyy-MM-ddTHH:mm:ss.fff");
-                var response = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/User/loadMessages?roomId={_roomId}&count={_pageSize}&before={before}");
+                var response = await client.GetAsync($"{AppSettings.GetServerUrl()}/api/User/loadMessages?roomId={_roomId}&count={pageSize}&before={before}");
 
                 // 로딩 표시 제거
                 ChatStack.Children.Remove(loadingIndicator);
@@ -566,13 +631,31 @@ namespace chatapp
                     }
 
                     // 더 불러올 메시지가 있는지 확인
-                    _hasMoreMessages = olderMessages.Count >= _pageSize;
+                    _hasMoreMessages = olderMessages.Count >= pageSize;
+
+                    // 채팅 히스토리에 추가 (최대 개수 제한)
+                    foreach (var message in olderMessages.OrderByDescending(m => m.Timestamp)) // 최신순 정렬 후 역순으로 추가
+                    {
+                        if (string.IsNullOrWhiteSpace(message.Message))
+                            continue;
+
+                        _chatHistory.Insert(0, message); // 목록 앞에 추가
+                    }
+
+                    // 표시할 최대 메시지 수 제한 (메모리 관리)
+                    int maxMessagesInMemory = 200;
+                    if (_chatHistory.Count > maxMessagesInMemory)
+                    {
+                        // 가장 오래된 메시지 제거
+                        int itemsToRemove = _chatHistory.Count - maxMessagesInMemory;
+                        _chatHistory.RemoveRange(0, itemsToRemove);
+                    }
 
                     // 날짜별 그룹화 및 UI에 메시지 추가
                     int insertIndex = 0;
                     DateTime? lastDay = null;
 
-                    foreach (var chat in olderMessages)
+                    foreach (var chat in olderMessages.OrderBy(m => m.Timestamp)) // 날짜순 정렬
                     {
                         if (string.IsNullOrWhiteSpace(chat.Message))
                             continue;
@@ -591,7 +674,18 @@ namespace chatapp
                         UIElement messageElement;
                         if (Uri.IsWellFormedUriString(chat.Message, UriKind.Absolute))
                         {
-                            messageElement = CreateImageBubble(chat.Sender, chat.Message, chat.Timestamp);
+                            if (IsImageUrl(chat.Message))
+                            {
+                                messageElement = CreateImageBubble(chat.Sender, chat.Message, chat.Timestamp);
+                            }
+                            else if (IsVideoUrl(chat.Message))
+                            {
+                                messageElement = CreateVideoBubble(chat.Sender, chat.Message, chat.Timestamp);
+                            }
+                            else
+                            {
+                                messageElement = CreateChatBubble(chat.Sender, chat.Message, chat.Timestamp);
+                            }
                         }
                         else
                         {
@@ -600,9 +694,25 @@ namespace chatapp
 
                         ChatStack.Children.Insert(insertIndex, messageElement);
                         insertIndex++;
+                    }
 
-                        // 채팅 히스토리에 추가
-                        _chatHistory.Insert(0, chat);
+                    // 이전 메시지가 더 있다면 상단에 로드 버튼 추가
+                    if (_hasMoreMessages)
+                    {
+                        Button loadMoreButton = new Button
+                        {
+                            Content = "이전 메시지 로드",
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            Margin = new Thickness(0, 10, 0, 10),
+                            Padding = new Thickness(10, 5, 10, 5),
+                            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F0F0F0")),
+                            BorderThickness = new Thickness(0),
+                            Cursor = Cursors.Hand
+                        };
+
+                        loadMoreButton.Click += (s, e) => LoadMoreMessages();
+
+                        ChatStack.Children.Insert(0, loadMoreButton);
                     }
 
                     // 스크롤 위치 유지
@@ -613,6 +723,12 @@ namespace chatapp
                 }
                 else
                 {
+                    // 오류 발생 시 이전 로드 버튼 복원
+                    if (oldButton != null)
+                    {
+                        ChatStack.Children.Insert(0, oldButton);
+                    }
+
                     ShowErrorMessage("이전 메시지 불러오기 실패: " + await response.Content.ReadAsStringAsync());
                 }
             }
@@ -1555,7 +1671,7 @@ namespace chatapp
                     FontWeight = FontWeights.SemiBold,
                     FontSize = 12,
                     Margin = new Thickness(10, 0, 0, 3),
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333333")) // 어두운 회색으로 변경
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333333"))
                 };
                 bubbleStack.Children.Add(nameBlock);
             }
@@ -1584,52 +1700,84 @@ namespace chatapp
                 Direction = 270
             };
 
+            // 이미지 컨테이너 그리드 (로딩 표시/이미지)
+            Grid imageGrid = new Grid
+            {
+                Width = 200,
+                Height = 200
+            };
+
+            // 로딩 표시
+            TextBlock loadingText = new TextBlock
+            {
+                Text = "이미지 로딩 중...",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = isCurrentUser ? Brushes.White : Brushes.Black
+            };
+
+            imageGrid.Children.Add(loadingText);
+
             // 이미지
             Image image = new Image
             {
                 Width = 200,
                 Height = 200,
                 Stretch = Stretch.Uniform,
-                StretchDirection = StretchDirection.DownOnly,
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Visibility = Visibility.Collapsed // 이미지 로드 전까지 숨김
             };
 
-            try
-            {
-                // 로컬 환경일 때 주소 변환
-                if (Environment.MachineName == "DESKTOP-NV0M9IM")
-                {
-                    if (imageUrl.Contains("nunconnect.duckdns.org:5159"))
-                    {
-                        imageUrl = imageUrl.Replace("nunconnect.duckdns.org:5159", "localhost:5159");
-                    }
-                }
-
-                // 이미지 로드
-                if (Uri.IsWellFormedUriString(imageUrl, UriKind.Absolute))
-                {
-                    image.Source = new BitmapImage(new Uri(imageUrl));
-                }
-                else
-                {
-                    ShowErrorMessage($"유효하지 않은 이미지 경로입니다: {imageUrl}");
-                    return null;
-                }
-            }
-            catch (Exception ex)
-            {
-                ShowErrorMessage($"이미지 로드 중 오류 발생: {ex.Message}");
-                return null;
-            }
+            imageGrid.Children.Add(image);
+            bubble.Child = imageGrid;
 
             // 클릭 시 전체 뷰어로 열기
-            image.MouseLeftButtonUp += (s, e) =>
+            imageGrid.MouseLeftButtonUp += async (s, e) =>
             {
+                // 캐시 경로 확인
+                string localPath = await CacheManager.GetOrDownloadFileAsync(imageUrl);
+                if (string.IsNullOrEmpty(localPath))
+                {
+                    MessageBox.Show("이미지를 로드할 수 없습니다.", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
                 var viewer = new ImageViewerWindow(imageUrl);
                 viewer.ShowDialog();
             };
 
-            bubble.Child = image;
+            // 백그라운드에서 이미지 로드
+            Task.Run(async () =>
+            {
+                try
+                {
+                    // 썸네일 이미지 생성
+                    var bitmap = await ImageHelper.LoadImageFromUrlAsync(imageUrl, 200, 200);
+
+                    // UI 스레드에서 이미지 표시
+                    this.Dispatcher.Invoke(() =>
+                    {
+                        if (bitmap != null)
+                        {
+                            image.Source = bitmap;
+                            image.Visibility = Visibility.Visible;
+                            loadingText.Visibility = Visibility.Collapsed;
+                        }
+                        else
+                        {
+                            loadingText.Text = "이미지 로드 실패";
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    this.Dispatcher.Invoke(() =>
+                    {
+                        loadingText.Text = "이미지 로드 실패";
+                        Console.WriteLine($"이미지 로드 오류: {ex.Message}");
+                    });
+                }
+            });
 
             // 시간 표시 추가
             TextBlock timeBlock = new TextBlock
@@ -2101,13 +2249,159 @@ namespace chatapp
             public string Sender { get; set; } = string.Empty;
             public string Message { get; set; } = string.Empty;
             public DateTime Timestamp { get; set; }
+
+            // 캐싱된 로컬 파일 경로 (미디어 메시지용)
+            [JsonIgnore] // JSON 직렬화에서 제외
+            public string LocalCachePath { get; set; }
+
+            // 메시지 타입 판별 (성능 향상을 위해 캐싱)
+            [JsonIgnore]
+            private MessageType? _messageType = null;
+
+            [JsonIgnore]
+            public MessageType MessageType
+            {
+                get
+                {
+                    if (_messageType.HasValue)
+                        return _messageType.Value;
+
+                    if (string.IsNullOrWhiteSpace(Message))
+                        return MessageType.Text;
+
+                    if (Uri.IsWellFormedUriString(Message, UriKind.Absolute))
+                    {
+                        string extension = Path.GetExtension(Message).ToLower();
+
+                        // 이미지 확장자 확인
+                        if (extension == ".jpg" || extension == ".jpeg" || extension == ".png" ||
+                            extension == ".webp" || extension == ".bmp")
+                        {
+                            _messageType = MessageType.Image;
+                            return MessageType.Image;
+                        }
+
+                        // 비디오 확장자 확인
+                        if (extension == ".mp4" || extension == ".mov" || extension == ".avi" ||
+                            extension == ".mkv" || extension == ".wmv")
+                        {
+                            _messageType = MessageType.Video;
+                            return MessageType.Video;
+                        }
+
+                        // GIF는 특별히 처리
+                        if (extension == ".gif")
+                        {
+                            _messageType = MessageType.Gif;
+                            return MessageType.Gif;
+                        }
+
+                        // 다른 URL
+                        _messageType = MessageType.Url;
+                        return MessageType.Url;
+                    }
+
+                    // 일반 텍스트
+                    _messageType = MessageType.Text;
+                    return MessageType.Text;
+                }
+            }
         }
+        public enum MessageType
+        {
+            Text,
+            Image,
+            Video,
+            Gif,
+            Url
+        }
+
         // RoomInfo 클래스 (없다면 추가)
         public class RoomInfo
         {
             [JsonProperty("Name")]
             public string RoomName { get; set; } = string.Empty;
             public string RoomId { get; set; } = string.Empty;
+        }
+        public class LimitedMessageList
+        {
+            private readonly List<ChatMessage> _messages;
+            private readonly int _maxCapacity;
+
+            public LimitedMessageList(int maxCapacity = 200)
+            {
+                _messages = new List<ChatMessage>(maxCapacity);
+                _maxCapacity = maxCapacity;
+            }
+
+            public int Count => _messages.Count;
+
+            public ChatMessage this[int index] => _messages[index];
+
+            public void Add(ChatMessage message)
+            {
+                _messages.Add(message);
+                TrimExcess();
+            }
+
+            public void Insert(int index, ChatMessage message)
+            {
+                _messages.Insert(index, message);
+                TrimExcess();
+            }
+            public ChatMessage FirstOrDefault(Func<ChatMessage, bool> predicate)
+            {
+                return _messages.FirstOrDefault(predicate);
+            }
+            public void Clear()
+            {
+                _messages.Clear();
+            }
+
+            public void RemoveRange(int index, int count)
+            {
+                _messages.RemoveRange(index, count);
+            }
+
+            public List<ChatMessage> ToList()
+            {
+                return new List<ChatMessage>(_messages);
+            }
+
+            private void TrimExcess()
+            {
+                if (_messages.Count > _maxCapacity)
+                {
+                    int itemsToRemove = _messages.Count - _maxCapacity;
+                    _messages.RemoveRange(0, itemsToRemove); // 가장 오래된 메시지 제거
+                }
+            }
+
+            public IEnumerable<ChatMessage> OrderBy(Func<ChatMessage, object> keySelector)
+            {
+                return _messages.OrderBy(keySelector);
+            }
+
+            public IEnumerable<ChatMessage> OrderByDescending(Func<ChatMessage, object> keySelector)
+            {
+                return _messages.OrderByDescending(keySelector);
+            }
+
+            public DateTime? MinTimestamp()
+            {
+                if (_messages.Count == 0)
+                    return null;
+
+                return _messages.Min(m => m.Timestamp);
+            }
+            public void Remove(ChatMessage message)
+            {
+                _messages.Remove(message);
+            }
+            public static implicit operator List<ChatMessage>(LimitedMessageList list)
+            {
+                return list.ToList();
+            }
         }
     }
 }

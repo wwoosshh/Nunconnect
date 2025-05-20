@@ -1,26 +1,109 @@
 ﻿using Newtonsoft.Json;
 using System;
+using IOPath = System.IO.Path; // 별칭 사용
+using UIPath = System.Windows.Shapes.Path; // 필요시 이 별칭도 사용
+using System.IO; // Path.GetExtension용
+using System.ComponentModel; // INotifyPropertyChanged용
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net.Http;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
+using System.Threading.Tasks;// INotifyPropertyChanged를 위해 필요
+
 // 다른 필요한 using 문 유지
 
 namespace chatapp
 {
+    public class ImageItem : INotifyPropertyChanged
+    {
+        private BitmapImage _image;
+        private bool _isLoading;
+        private bool _isLoaded;
+
+        public string Url { get; set; }
+
+        public BitmapImage Image
+        {
+            get => _image;
+            set
+            {
+                _image = value;
+                OnPropertyChanged(nameof(Image));
+            }
+        }
+
+        public bool IsLoading
+        {
+            get => _isLoading;
+            set
+            {
+                _isLoading = value;
+                OnPropertyChanged(nameof(IsLoading));
+            }
+        }
+
+        public bool IsLoaded
+        {
+            get => _isLoaded;
+            set
+            {
+                _isLoaded = value;
+                OnPropertyChanged(nameof(IsLoaded));
+            }
+        }
+
+        public async Task LoadImageAsync()
+        {
+            if (IsLoaded || IsLoading || string.IsNullOrEmpty(Url))
+                return;
+
+            IsLoading = true;
+
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad; // 메모리 관리를 위해 이미지 캐싱
+                bitmap.UriSource = new Uri(Url);
+                bitmap.DecodePixelWidth = 180; // 썸네일 크기로 제한
+                bitmap.EndInit();
+                bitmap.Freeze(); // 중요: UI 스레드 간 공유 가능하도록 Freeze
+
+                Image = bitmap;
+                IsLoaded = true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"이미지 로드 오류: {ex.Message}");
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        protected void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
     public partial class ImageListWindow : Window
     {
         private readonly string _roomId;
         private readonly MainWindow.UserData _currentUser; // MainWindow의 UserData 클래스 사용
         private readonly List<string> _imageUrls = new List<string>();
         private DispatcherTimer _loadingDotsTimer;
+        private ObservableCollection<ImageItem> _images = new ObservableCollection<ImageItem>();
 
         public ImageListWindow(string roomId, MainWindow.UserData currentUser)
         {
@@ -40,10 +123,59 @@ namespace chatapp
             DoubleAnimation fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.3));
             this.BeginAnimation(UIElement.OpacityProperty, fadeIn);
 
+            // 데이터 바인딩 설정
+            ImageItems.ItemsSource = _images;
+
+            // 이미 정의된 ScrollViewer(ItemsPanel)에 직접 이벤트 연결
+            ItemsPanel.ScrollChanged += ScrollViewer_ScrollChanged;
+
             // 이미지 로드
             LoadImages();
         }
 
+        // 스크롤 이벤트 핸들러 추가
+        private void ScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (sender is ScrollViewer scrollViewer)
+            {
+                // 화면에 보이는 아이템 로드
+                LoadVisibleImages(scrollViewer);
+            }
+        }
+        // 화면에 보이는 이미지 로드
+        private async void LoadVisibleImages(ScrollViewer scrollViewer)
+        {
+            try
+            {
+                double viewportTop = scrollViewer.VerticalOffset;
+                double viewportBottom = viewportTop + scrollViewer.ViewportHeight;
+
+                // ScrollViewer 내에 있는 아이템 확인
+                for (int i = 0; i < _images.Count; i++)
+                {
+                    var imageItem = _images[i];
+
+                    if (!imageItem.IsLoaded && !imageItem.IsLoading)
+                    {
+                        // 아이템의 위치 계산 (근사치)
+                        double itemTop = (i / (int)(scrollViewer.ViewportWidth / 180)) * 180;
+                        double itemBottom = itemTop + 180;
+
+                        // 화면에 보이는지 확인
+                        if ((itemTop >= viewportTop && itemTop <= viewportBottom) ||
+                            (itemBottom >= viewportTop && itemBottom <= viewportBottom))
+                        {
+                            // 이미지 로드
+                            await imageItem.LoadImageAsync();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"이미지 로드 오류: {ex.Message}");
+            }
+        }
         private void InitializeLoadingAnimation()
         {
             _loadingDotsTimer = new DispatcherTimer();
@@ -62,6 +194,7 @@ namespace chatapp
             _loadingDotsTimer.Start();
         }
 
+        // LoadImages 메서드 수정
         private async void LoadImages()
         {
             try
@@ -69,7 +202,7 @@ namespace chatapp
                 // 로딩 상태 표시
                 LoadingIndicator.Visibility = Visibility.Visible;
                 NoImagesText.Visibility = Visibility.Collapsed;
-                ImagePanel.Children.Clear();
+                _images.Clear();
                 _imageUrls.Clear();
 
                 // 채팅 메시지 로드
@@ -95,19 +228,14 @@ namespace chatapp
                         if (Uri.IsWellFormedUriString(message.Message, UriKind.Absolute) && IsImageUrl(message.Message))
                         {
                             _imageUrls.Add(message.Message);
+
+                            // ImageItem 생성
+                            _images.Add(new ImageItem { Url = message.Message });
                         }
                     }
 
                     // 이미지 갯수 표시
                     ImageCountText.Text = $"총 {_imageUrls.Count}개";
-
-                    // 이미지 목록 표시
-                    foreach (var imageUrl in _imageUrls)
-                    {
-                        AddImagePreview(imageUrl);
-                        // 약간의 지연을 두어 UI 스레드가 응답할 수 있도록 함
-                        await Task.Delay(10);
-                    }
 
                     // 로딩 상태 숨김
                     LoadingIndicator.Visibility = Visibility.Collapsed;
@@ -118,6 +246,24 @@ namespace chatapp
                     {
                         NoImagesText.Visibility = Visibility.Visible;
                     }
+                    else
+                    {
+                        // 처음 화면에 보이는 이미지만 로드
+                        await Task.Delay(100); // UI 업데이트 대기
+
+                        if (ImageItems.ItemsPanel != null && ImageItems.ItemsPanel.FindName("ItemsPanel") is ScrollViewer sv)
+                        {
+                            LoadVisibleImages(sv);
+                        }
+                        else
+                        {
+                            // 첫 5개 이미지만 로드 (기본값)
+                            for (int i = 0; i < Math.Min(5, _images.Count); i++)
+                            {
+                                await _images[i].LoadImageAsync();
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -125,62 +271,13 @@ namespace chatapp
                 ShowError($"이미지 목록을 불러오는 중 오류가 발생했습니다: {ex.Message}");
             }
         }
-
-        private void AddImagePreview(string imageUrl)
+        // 이미지 클릭 이벤트 핸들러
+        private async void Image_Click(object sender, MouseButtonEventArgs e)
         {
-            // 이미지 컨테이너
-            Border container = new Border
+            if (sender is FrameworkElement element && element.DataContext is ImageItem imageItem)
             {
-                Width = 180,
-                Height = 180,
-                Style = (Style)FindResource("ImageContainer"),
-                Cursor = Cursors.Hand
-            };
+                string imageUrl = imageItem.Url;
 
-            Grid imageGrid = new Grid();
-
-            // 이미지
-            Image image = new Image
-            {
-                Width = 160,
-                Height = 160,
-                Stretch = Stretch.Uniform,
-                Margin = new Thickness(10)
-            };
-
-            try
-            {
-                // 로컬 환경일 때 주소 변환
-                if (Environment.MachineName == "DESKTOP-NV0M9IM")
-                {
-                    if (imageUrl.Contains("nunconnect.duckdns.org:5159"))
-                    {
-                        imageUrl = imageUrl.Replace("nunconnect.duckdns.org:5159", "localhost:5159");
-                    }
-                }
-
-                image.Source = new BitmapImage(new Uri(imageUrl));
-            }
-            catch
-            {
-                // 이미지 로드 실패 시 기본 이미지 표시
-                TextBlock errorBlock = new TextBlock
-                {
-                    Text = "이미지 로드 실패",
-                    Foreground = Brushes.Red,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-
-                imageGrid.Children.Add(errorBlock);
-                container.Child = imageGrid;
-                ImagePanel.Children.Add(container);
-                return;
-            }
-
-            // 이미지 클릭 이벤트
-            container.MouseLeftButtonUp += (s, e) =>
-            {
                 // 페이드 아웃 애니메이션
                 DoubleAnimation fadeOut = new DoubleAnimation(1, 0.7, TimeSpan.FromSeconds(0.2));
 
@@ -189,7 +286,7 @@ namespace chatapp
                     var viewer = new ImageViewerWindow(imageUrl);
                     viewer.Owner = this;
 
-                    // 갤러리 모드 설정 - 현재 이미지가 포함된 모든 이미지 전달
+                    // 갤러리 모드 설정 - 모든 이미지 URL 전달
                     viewer.Loaded += (s3, e3) => viewer.SetGalleryMode(_imageUrls);
 
                     viewer.ShowDialog();
@@ -200,16 +297,11 @@ namespace chatapp
                 };
 
                 this.BeginAnimation(UIElement.OpacityProperty, fadeOut);
-            };
-
-            imageGrid.Children.Add(image);
-            container.Child = imageGrid;
-            ImagePanel.Children.Add(container);
+            }
         }
-
         private bool IsImageUrl(string url)
         {
-            string extension = System.IO.Path.GetExtension(url).ToLower();
+            string extension = IOPath.GetExtension(url).ToLower(); // 명시적으로 IOPath 사용
             return extension == ".jpg" || extension == ".jpeg" || extension == ".png" ||
                    extension == ".bmp" || extension == ".webp" || extension == ".gif";
         }
@@ -219,11 +311,6 @@ namespace chatapp
             LoadingIndicator.Visibility = Visibility.Collapsed;
             _loadingDotsTimer.Stop();
             MessageBox.Show(message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-
-        private void RefreshButton_Click(object sender, RoutedEventArgs e)
-        {
-            LoadImages();
         }
 
         private void ViewAllButton_Click(object sender, RoutedEventArgs e)
@@ -264,6 +351,40 @@ namespace chatapp
             };
             fadeOut.Completed += (s, args) => this.Close();
             this.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+        }
+        // 창이 닫힐 때 명시적으로 리소스 정리
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            // 이미지 리소스 해제
+            foreach (var imageItem in _images)
+            {
+                imageItem.Image = null;
+            }
+
+            _images.Clear();
+
+            // GC 힌트
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        // 새로고침 시 메모리 정리
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 기존 이미지 리소스 해제
+            foreach (var imageItem in _images)
+            {
+                imageItem.Image = null;
+            }
+
+            _images.Clear();
+
+            // GC 힌트
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            // 이미지 다시 로드
+            LoadImages();
         }
     }
 }

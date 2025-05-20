@@ -177,8 +177,31 @@
 
         <!-- 이미지 목록 영역 -->
         <Grid Grid.Row="1" Margin="20">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <WrapPanel x:Name="ImagePanel"/>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Name="ItemsPanel">
+                <ItemsControl x:Name="ImageItems">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="180" Height="180" Style="{StaticResource ImageContainer}" 
+                        Cursor="Hand" MouseLeftButtonUp="Image_Click" Margin="8">
+                                <Grid>
+                                    <!-- 로딩 상태 표시 -->
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Text="로딩 중..." HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <!-- 이미지 -->
+                                    <Image Source="{Binding Image}" Stretch="Uniform" Margin="10"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </ScrollViewer>
 
             <!-- 로딩 표시 -->

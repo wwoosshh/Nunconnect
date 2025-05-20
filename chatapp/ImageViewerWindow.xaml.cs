@@ -102,12 +102,23 @@ namespace chatapp
         {
             try
             {
-                // 이미지 로더 설정
+                // 로딩 표시 활성화
+                LoadingIndicator.Visibility = Visibility.Visible;
+
+                // 디스크 캐시에서 이미지 로드
+                string localPath = await CacheManager.GetOrDownloadFileAsync(imageUrl);
+                if (string.IsNullOrEmpty(localPath))
+                {
+                    throw new Exception("이미지 다운로드에 실패했습니다.");
+                }
+
+                // 이미지 로더 설정 (파일 경로에서 직접 로드)
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
-                bitmap.UriSource = new Uri(imageUrl);
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(localPath);
+                bitmap.CacheOption = BitmapCacheOption.OnLoad; // 파일 스트림 즉시 닫기
                 bitmap.EndInit();
+                bitmap.Freeze(); // 스레드 간 공유 가능하게 설정
 
                 // 이미지 설정
                 ImageViewer.Source = bitmap;
@@ -133,6 +144,7 @@ namespace chatapp
                 MessageBox.Show($"이미지 로드 중 오류 발생: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
         // 이전 이미지 버튼 클릭 핸들러
         private void PrevButton_Click(object sender, RoutedEventArgs e)
         {

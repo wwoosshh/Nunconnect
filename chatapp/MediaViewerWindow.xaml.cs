@@ -315,41 +315,57 @@ namespace chatapp
             }
         }
 
-        private void SetupVideoPlayer(string mediaUrl)
+        private async void SetupVideoPlayer(string mediaUrl)
         {
-            // 비디오 컨트롤 표시
-            MediaControls.Visibility = Visibility.Visible;
-            MediaPlayer.Visibility = Visibility.Visible;
+            try
+            {
+                // 비디오 컨트롤 표시
+                MediaControls.Visibility = Visibility.Visible;
+                MediaPlayer.Visibility = Visibility.Visible;
 
-            // GIF 이미지 숨기기
-            GifImage.Visibility = Visibility.Collapsed;
+                // GIF 이미지 숨기기
+                GifImage.Visibility = Visibility.Collapsed;
 
-            // 미디어 소스 설정
-            MediaPlayer.Source = new Uri(mediaUrl);
-
-            // 볼륨 설정
-            MediaPlayer.Volume = VolumeSlider.Value;
-
-            // 로딩이 지연되는 경우를 위한 타임아웃 설정
-            DispatcherTimer loadTimer = new DispatcherTimer();
-            loadTimer.Interval = TimeSpan.FromSeconds(10); // 10초 타임아웃
-            loadTimer.Tick += (s, e) => {
-                loadTimer.Stop();
-                if (LoadingIndicator.Visibility == Visibility.Visible)
+                // 디스크 캐시에서 미디어 로드
+                string localPath = await CacheManager.GetOrDownloadFileAsync(mediaUrl);
+                if (string.IsNullOrEmpty(localPath))
                 {
-                    // 아직도 로딩 중이라면 수동으로 재생 시도
-                    LoadingIndicator.Visibility = Visibility.Collapsed;
-
-                    // 사용자에게 메시지 표시
-                    MessageBox.Show("미디어 로딩이 지연되고 있습니다. 재생 버튼을 눌러 시도해 보세요.",
-                                    "정보", MessageBoxButton.OK, MessageBoxImage.Information);
+                    throw new Exception("미디어 다운로드에 실패했습니다.");
                 }
-            };
-            loadTimer.Start();
 
-            // 재생 시도
-            MediaPlayer.Play();
-            MediaPlayer.Pause(); // 자동 재생 방지 (사용자가 버튼 누를 때까지)
+                // 미디어 소스 설정 (로컬 파일 경로에서 로드)
+                MediaPlayer.Source = new Uri(localPath);
+
+                // 볼륨 설정
+                MediaPlayer.Volume = VolumeSlider.Value;
+
+                // 로딩이 지연되는 경우를 위한 타임아웃 설정
+                DispatcherTimer loadTimer = new DispatcherTimer();
+                loadTimer.Interval = TimeSpan.FromSeconds(10); // 10초 타임아웃
+                loadTimer.Tick += (s, e) => {
+                    loadTimer.Stop();
+                    if (LoadingIndicator.Visibility == Visibility.Visible)
+                    {
+                        // 아직도 로딩 중이라면 수동으로 재생 시도
+                        LoadingIndicator.Visibility = Visibility.Collapsed;
+
+                        // 사용자에게 메시지 표시
+                        MessageBox.Show("미디어 로딩이 지연되고 있습니다. 재생 버튼을 눌러 시도해 보세요.",
+                                        "정보", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                };
+                loadTimer.Start();
+
+                // 재생 시도
+                MediaPlayer.Play();
+                MediaPlayer.Pause(); // 자동 재생 방지 (사용자가 버튼 누를 때까지)
+            }
+            catch (Exception ex)
+            {
+                LoadingIndicator.Visibility = Visibility.Collapsed;
+                MessageBox.Show($"비디오 설정 중 오류 발생: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                Console.WriteLine($"비디오 설정 실패 [{mediaUrl}]: {ex.Message}");
+            }
         }
 
         private void MediaPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
